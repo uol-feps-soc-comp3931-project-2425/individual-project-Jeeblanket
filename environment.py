@@ -2,8 +2,8 @@ import random
 from classes import UAV
 from classes import HAP
 from classes import UserRequest
-from optimization import PSO
-from optimization import GWO
+from optimisation import PSO
+from optimisation import GWO
 
 class SimulationEnvironment:
     def __init__(self):
