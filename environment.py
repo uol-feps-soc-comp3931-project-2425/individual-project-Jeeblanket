@@ -49,12 +49,12 @@ class SimulationEnvironment:
 
     def optimise_network(self):
         # calls GWO
-        gwo_optimiser = GWO(self.uavs, self.haps, request)
+        gwo_optimiser = GWO(self.uavs, self.haps, self.pending_requests)
         gwo_optimiser.optimise()
     
     def optimise_vnfs(self):
         # calls PSO
-        pso_optimiser = PSO(self.uavs, self.haps, self.user_requests)
+        pso_optimiser = PSO(self.uavs, self.haps, self.pending_requests)
         pso_optimiser.optimise()
 
     def distance(self):
