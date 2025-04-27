@@ -1,6 +1,17 @@
 import SimPy
+import pandas as pd
+from environment import SimulationEnvironment
 
 
+def main():
+    latency_records = []
+    # initialise environment, HAPS and UAVs
+    s1 = SimulationEnvironment()
+    
+    # begin simulation
+    latency_records = s1.run_simulation()
+    latency_df = pd.DataFrame(latency_records)
+    latency_df.to_csv("simulation_latency_results1.csv", index=False)
 
 # 1. need a way to simulate:
 #   a 3d spatial environment for UAV and HAP positions
