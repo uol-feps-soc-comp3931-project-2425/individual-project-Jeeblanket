@@ -18,10 +18,11 @@ PARAMS = {
 }
 
 class UserRequest:
-    def __init__(self, request_id, user_position, requested_vnfs):
+    def __init__(self, request_id, user_position, requested_vnfs, demand=5):
         self.request_id = request_id
         self.user_position = user_position  # (x, y, z) on ground (assume z=0)
         self.requested_vnfs = requested_vnfs  # List of VNFs
+        self.demand = demand
 
 class UAV:
     def __init__(self, uav_id, position, max_vnfs, communication_range):
@@ -32,6 +33,8 @@ class UAV:
         self.communication_range = communication_range
         self.active_vnfs = set()
         self.connected_users = []
+        self.current_load = 0
+        self.max_capacity = PARAMS["BW_max_user_uav"]
     
     def activate_vnf(self, vnf_id):
         if len(self.active_vnfs) < self.max_vnfs:

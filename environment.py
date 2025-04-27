@@ -69,6 +69,10 @@ class SimulationEnvironment:
             if not vnfs_needed.issubset(uav.active_vnfs):
                 continue  # Cannot serve this request
 
+            # meeting constraint 2.14
+            if uav.current_load + request.demand > uav.max_capacity:
+                continue  # This UAV cannot take more load
+
             dist = distance(uav.position, request.user_position)
             if dist < best_distance:
                 best_distance = dist
@@ -76,6 +80,7 @@ class SimulationEnvironment:
 
         if best_uav:
             best_uav.connected_users.append(request)
+            best_uav.current_load += request.demand  # Increase load
             return best_uav
         else:
             # No UAV found - queue for retry
