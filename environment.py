@@ -77,7 +77,6 @@ class SimulationEnvironment:
         hap = self.haps[0]  # Assume only one HAP for now
         dist_user_uav = distance(uav.position, request.user_position)
         dist_uav_hap = distance(uav.position, hap.position)
-    
         bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
         bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
     
@@ -85,14 +84,24 @@ class SimulationEnvironment:
         return rcl
     
     def decision_making(self):
-        self.optimise_network()
-        self.optimise_vnfs()
+        deployment= self.optimise_network()
+        placement = self.optimise_vnfs()
+        dml = deployment + placement
+        return dml
 
-    def placement(self):
-        pass
+    def placement(self, uav):
+        uav_movement = PARAMS["latency_coeffs"]["gamma1"] * uav.move()
+        dist = distance(uav.position, self.hap[0].position)
+        bw = bandwidth(dist, 'uav_hap')
+        transmission = PARAMS["latency_coeffs"]["gamma2"] * (dist / bw)
+        pl = uav_movement + transmission
+        return pl
 
-    def preparation(self):
-        pass
+    def preparation(self, uav):
+        dist = distance(uav.position, self.hap[0].position)
+        bw = bandwidth(dist, 'uav_hap')
+        transmission = (PARAMS["latency_coeffs"]["beta1"] * (dist / bw)) + PARAMS["latency_coeffs"]["beta2"]
+        return transmission
 
     def transmission(self):
         pass
