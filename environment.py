@@ -6,12 +6,21 @@ from optimisation import PSO
 from optimisation import GWO
 
 class SimulationEnvironment:
-    def __init__(self):
+    def __init__(self, a1, a2, b1, b2, gamma, delta, step, no_uavs, lambda_arrival_rate):
         self.uavs = []
         self.haps = []
         self.user_requests = []
+        self.pending_requests = []
         self.time = 0
-        self.lambda_arrival_rate = 5  # Example requests per unit time
+        self.lambda_arrival_rate = lambda_arrival_rate  # Example requests per unit time
+        self.a1 = a1
+        self.a2 = a2
+        self.b1 = b1
+        self.b2 = b2
+        self.gamma = gamma
+        self.delta = delta
+        self.step = step
+        self.no_uavs = no_uavs
 
         self.initialize_network()
 
@@ -36,10 +45,53 @@ class SimulationEnvironment:
         gwo_optimizer = GWO(self.uavs, self.haps, self.user_requests)
         gwo_optimizer.optimize()
 
+    def distance(self):
+        pass
+
+    def request_collection(self):
+        rcl = (self.a1 * (distance(user, uav) / bandwidth(user, uav))) + (self.a2 * (distance(uav, hap) / bandwidth(uav, hap)))
+        return rcl
+    
+    def decision_making(self):
+        pass
+
+    def placement(self):
+        pass
+
+    def preparation(self):
+        pass
+
+    def transmission(self):
+        pass
+
+    def process_requests(self):
+        processed_latencies = []
+    
+        while self.pending_requests:
+            request = self.pending_requests.pop(0)  # FIFO processing
+            rcl = self.request_collection(request)
+            dml = self.decision_making(request)
+            pl = self.placement(request)
+            prep = self.preparation(request)
+            tx = self.transmission(request)
+        
+            total_latency = rcl + dml + pl + prep + tx
+        
+            processed_latencies.append({
+                'request_id': request.request_id,
+                'rcl': rcl,
+                'dml': dml,
+                'pl': pl,
+                'prep': prep,
+                'tx': tx,
+                'total': total_latency
+            })
+        
+        return processed_latencies
+
     def run_simulation(self):
-        for step in range(100):
-            print(f"--- Time Step {step} ---")
-            self.generate_user_requests()
-            self.optimize_network()
-            # Clear old requests if needed
-            self.user_requests = []
+        print(f"--- Time Step {step} ---")
+        self.generate_user_requests()
+        self.optimize_network()
+        step_latencies = self.process_requests()
+        self.store_latencies(step_latencies)
