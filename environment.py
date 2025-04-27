@@ -54,16 +54,25 @@ class SimulationEnvironment:
 
 
     def assign_user_to_uav(self, request):
+        # satisfies constraint defined in 2.11
         best_uav = None
         best_distance = float('inf')
  
         for uav in self.uavs:
-            if uav.can_serve_user(request.user_position):
+            if not uav.can_serve_user(request.user_position):
                 # check if UAV can serve the requested VNF
-                dist = distance(uav.position, request.user_position)
-                if dist < best_distance:
-                    best_distance = dist
-                    best_uav = uav
+                continue
+
+            # Check if UAV has the VNFs active
+            vnfs_needed = set(request.requested_vnfs)
+            if not vnfs_needed.issubset(uav.active_vnfs):
+                continue  # Cannot serve this request
+
+            dist = distance(uav.position, request.user_position)
+            if dist < best_distance:
+                best_distance = dist
+                best_uav = uav
+                
         if best_uav:
             best_uav.connected_users.append(request)
             return best_uav
