@@ -77,6 +77,10 @@ class SimulationEnvironment:
             if uav.current_load + request.demand > uav.max_capacity:
                 continue  # This UAV cannot take more load
 
+            # enforces assignemtn range constraint
+            if not uav.can_serve_user(request.user_position):
+                continue
+
             dist = distance(uav.position, request.user_position)
             if dist < best_distance:
                 best_distance = dist
