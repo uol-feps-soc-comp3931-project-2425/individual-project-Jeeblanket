@@ -100,11 +100,15 @@ class SimulationEnvironment:
     def preparation(self, uav):
         dist = distance(uav.position, self.hap[0].position)
         bw = bandwidth(dist, 'uav_hap')
-        transmission = (PARAMS["latency_coeffs"]["beta1"] * (dist / bw)) + PARAMS["latency_coeffs"]["beta2"]
-        return transmission
+        prep = (PARAMS["latency_coeffs"]["beta1"] * (dist / bw)) + PARAMS["latency_coeffs"]["beta2"]
+        return prep
 
-    def transmission(self):
-        pass
+    def transmission(self, request, uav):
+        dist = distance(uav.position,request.user_position)
+        bw = bandwidth(dist, 'user_uav')
+        tx = PARAMS["latency_coeffs"]["delta1"] * (dist / bw)
+        return tx
+        
 
     def process_requests(self):
         processed_latencies = []
