@@ -63,6 +63,10 @@ class SimulationEnvironment:
                 # check if UAV can serve the requested VNF
                 continue
 
+            # meeting constraint 2.15
+            if not uav.is_active:
+                continue  # skip inactive UAVs
+
             # Check if UAV has the VNFs active
             # meeting constraint 2.12
             vnfs_needed = set(request.requested_vnfs)

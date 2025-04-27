@@ -35,6 +35,7 @@ class UAV:
         self.connected_users = []
         self.current_load = 0
         self.max_capacity = PARAMS["BW_max_user_uav"]
+        self.is_active = True
     
     def activate_vnf(self, vnf_id):
         if len(self.active_vnfs) < self.max_vnfs:
