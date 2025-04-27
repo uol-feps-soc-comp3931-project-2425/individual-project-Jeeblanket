@@ -1,4 +1,6 @@
 import random
+import pandas as pd
+from collections import deque
 from classes import UAV
 from classes import HAP
 from classes import UserRequest
@@ -10,7 +12,7 @@ class SimulationEnvironment:
         self.uavs = []
         self.haps = []
         self.user_requests = []
-        self.pending_requests = []
+        self.pending_requests = deque()
         self.time = 0
         self.lambda_arrival_rate = lambda_arrival_rate  # Example requests per unit time
         self.a1 = a1
@@ -21,6 +23,7 @@ class SimulationEnvironment:
         self.delta = delta
         self.step = step
         self.no_uavs = no_uavs
+        self.latency_records = []
 
         self.initialize_network()
 
@@ -48,8 +51,11 @@ class SimulationEnvironment:
     def distance(self):
         pass
 
+    def bandwidth(self):
+        pass
+
     def request_collection(self):
-        rcl = (self.a1 * (distance(user, uav) / bandwidth(user, uav))) + (self.a2 * (distance(uav, hap) / bandwidth(uav, hap)))
+        rcl = (self.a1 * (self.distance(user, uav) / self.bandwidth(user, uav))) + (self.a2 * (self.distance(uav, hap) / self.bandwidth(uav, hap)))
         return rcl
     
     def decision_making(self):
@@ -68,7 +74,7 @@ class SimulationEnvironment:
         processed_latencies = []
     
         while self.pending_requests:
-            request = self.pending_requests.pop(0)  # FIFO processing
+            request = self.pending_requests.popleft()  # FIFO processing
             rcl = self.request_collection(request)
             dml = self.decision_making(request)
             pl = self.placement(request)
@@ -86,12 +92,16 @@ class SimulationEnvironment:
                 'tx': tx,
                 'total': total_latency
             })
-        
+
+        self.latency_records.extend(processed_latencies)
         return processed_latencies
 
     def run_simulation(self):
-        print(f"--- Time Step {step} ---")
-        self.generate_user_requests()
-        self.optimize_network()
-        step_latencies = self.process_requests()
-        self.store_latencies(step_latencies)
+        latency_records = []
+        for step in range(100):
+            print(f"--- Time Step {self.step} ---")
+            self.generate_user_requests()
+            self.optimize_network()
+            self.process_requests(step)
+        
+        return self.latency_records
