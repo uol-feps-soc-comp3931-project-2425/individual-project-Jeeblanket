@@ -42,7 +42,10 @@ class SimulationEnvironment:
         for i in range(num_requests):
             position = (random.uniform(-100000, 100000), random.uniform(-100000, 100000), 0)
             requested_vnfs = random.sample(range(10), random.randint(1, 3))
-            self.user_requests.append(UserRequest(request_id=len(self.user_requests), user_position=position, requested_vnfs=requested_vnfs))
+            new_request = UserRequest(request_id=len(self.user_requests), user_position=position, requested_vnfs=requested_vnfs)
+
+            self.user_requests.append(new_request)
+            self.pending_requests.append(new_request)
 
     def optimise_network(self):
         # calls GWO
@@ -75,12 +78,20 @@ class SimulationEnvironment:
             best_uav.connected_users.append(request)
             return best_uav
         else:
-            # No UAV found - could either drop the request or queue it for retry
+            # No UAV found - queue for retry
+            self.pending_requests.append(request)
             return None
 
 
-    def request_collection(self, request):
-        rcl = (self.a1 * (self.distance(request.user_position, uav) / self.bandwidth(request.user_position, uav))) + (self.a2 * (self.distance(uav, hap) / self.bandwidth(uav, hap)))
+    def request_collection(self, request, uav):
+        hap = self.haps[0]  # Assume only one HAP for now
+        dist_user_uav = self.distance(uav.position, request.user_position)
+        dist_uav_hap = self.distance(uav.position, hap.position)
+    
+        bw_user_uav = self.bandwidth(dist_user_uav, link_type='user_uav')
+        bw_uav_hap = self.bandwidth(dist_uav_hap, link_type='uav_hap')
+    
+        rcl = (self.a1 * (dist_user_uav / bw_user_uav)) + (self.a2 * (dist_uav_hap / bw_uav_hap))
         return rcl
     
     def decision_making(self):
@@ -101,11 +112,19 @@ class SimulationEnvironment:
     
         while self.pending_requests:
             request = self.pending_requests.popleft()  # FIFO processing
-            rcl = self.request_collection(request)
-            dml = self.decision_making(request)
-            pl = self.placement(request)
-            prep = self.preparation(request)
-            tx = self.transmission(request)
+
+
+            assigned_uav = self.assign_user_to_uav(request)
+            if not assigned_uav:
+                # for debugging only, in reality if skipped need to gather next request
+                # need to be careful not to enter an infinite loop if all users cannot be assigned
+                print("request {request.request_id} could not be assigned to uav") 
+                continue
+            rcl = self.request_collection(request, assigned_uav)
+            dml = self.decision_making(request, assigned_uav)
+            pl = self.placement(request, assigned_uav)
+            prep = self.preparation(request, assigned_uav)
+            tx = self.transmission(request, assigned_uav)
         
             total_latency = rcl + dml + pl + prep + tx
         
