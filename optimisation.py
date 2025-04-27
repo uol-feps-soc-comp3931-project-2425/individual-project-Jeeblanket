@@ -216,7 +216,10 @@ class PSO:
 
         # 5. Update UAVs' active VNFs
         for uav_idx, uav in enumerate(self.uavs):
-            active_vnfs = set(np.where(gbest[uav_idx] == 1)[0])
+            active_vnfs = list(np.where(gbest[uav_idx] == 1)[0])
+            # enforce max_vnfs limit (constraint 2.13)
+            if len(active_vnfs) > uav.max_vnfs:
+                active_vnfs = random.sample(active_vnfs, uav.max_vnfs) # if limit is exceeded, vnfs to activate are selected randomly
             uav.active_vnfs = active_vnfs
 
         return time.time() - start_time

@@ -64,6 +64,7 @@ class SimulationEnvironment:
                 continue
 
             # Check if UAV has the VNFs active
+            # meeting constraint 2.12
             vnfs_needed = set(request.requested_vnfs)
             if not vnfs_needed.issubset(uav.active_vnfs):
                 continue  # Cannot serve this request
@@ -72,7 +73,7 @@ class SimulationEnvironment:
             if dist < best_distance:
                 best_distance = dist
                 best_uav = uav
-                
+
         if best_uav:
             best_uav.connected_users.append(request)
             return best_uav
