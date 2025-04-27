@@ -102,6 +102,16 @@ class GWO:
         # 5. Update UAVs with new best positions
         for i, uav in enumerate(self.uavs):
             uav.move_to(wolves[i])
+        
+            # check if UAV can reach HAP
+            # enforcing constraint 2.17
+            reachable = False
+            for hap in self.haps:
+                d = distance(uav.position, hap.position)
+                if d <= hap.communication_range:
+                    reachable = True
+                    break
+            uav.is_active = reachable
         return (time.time() - start_time)
 
 class PSO:
