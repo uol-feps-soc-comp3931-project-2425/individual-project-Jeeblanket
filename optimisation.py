@@ -1,6 +1,7 @@
 import math
 import random
-from main import bandwidth
+from main import bandwidth, distance
+from classes import PARAMS
 
 class GWO:
     def __init__(self, uavs, haps, requests):
@@ -8,13 +9,9 @@ class GWO:
         self.haps = haps
         self.requests = requests
 
-    def calculate_distance(self, pos1, pos2):
-        return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
-
-    
     def fitness(self, uav_positions):
         # Calculate total latency based on UAV positions
-        # (use a simplified or estimated latency here)
+        # (simplified estimated latency here)
         total_latency = 0
 
         hap = self.haps[0]
@@ -23,19 +20,16 @@ class GWO:
             best_latency = float('inf')
             for pos in uav_positions:
                 # check distance from UAV to user
-                dist_user_uav = self.calculate_distance(pos, request.user_position)
+                dist_user_uav = distance(pos, request.user_position)
                 # check distance form uav to hap
-                dist_uav_hap = self.calculate_distance(pos, hap.position)
+                dist_uav_hap = distance(pos, hap.position)
                 # calculate bandwidths
                 bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
                 bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
                 # calculate request collection latency
-                rcl = (self.a1 * (dist_user_uav / bw_user_uav)) + (self.a2 * (dist_uav_hap / bw_uav_hap))
+                rcl = (PARAMS.alpha1 * (dist_user_uav / bw_user_uav)) + (PARAMS.alpha2 * (dist_uav_hap / bw_uav_hap))
                 if rcl < best_latency:
                     best_latency = rcl
-            # if no uav can serve, penalise heavily
-            if best_latency == float('inf'):
-                best_latency = 1e9  # Large penalty
 
             total_latency += best_latency
         return total_latency

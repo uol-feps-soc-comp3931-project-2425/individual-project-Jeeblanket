@@ -1,26 +1,22 @@
 import random
 import pandas as pd
+from main import bandwidth, distance
 from collections import deque
 from classes import UAV
 from classes import HAP
 from classes import UserRequest
+from classes import PARAMS
 from optimisation import PSO
 from optimisation import GWO
 
 class SimulationEnvironment:
-    def __init__(self, a1, a2, b1, b2, gamma, delta, step, no_uavs, lambda_arrival_rate, max_vnfs):
+    def __init__(self, step, no_uavs, lambda_arrival_rate, max_vnfs):
         self.uavs = []  # set of all UAVs
         self.haps = []  # set of all HAPs
         self.user_requests = [] # set of all generated requests
         self.pending_requests = deque() # queue for attending to requests
         self.time = 0
         self.lambda_arrival_rate = lambda_arrival_rate  # requests per unit time
-        self.a1 = a1
-        self.a2 = a2
-        self.b1 = b1
-        self.b2 = b2
-        self.gamma = gamma
-        self.delta = delta
         self.step = step    # timestep between reconfiguration (??)
         self.no_uavs = no_uavs  # number of UAVs in the system
         self.latency_records = []   # record for analysis
@@ -57,11 +53,6 @@ class SimulationEnvironment:
         pso_optimiser = PSO(self.uavs, self.haps, self.pending_requests)
         pso_optimiser.optimise()
 
-    def distance(self):
-        pass
-
-    def bandwidth(self):
-        pass
 
     def assign_user_to_uav(self, request):
         best_uav = None
@@ -70,7 +61,7 @@ class SimulationEnvironment:
         for uav in self.uavs:
             if uav.can_serve_user(request.user_position):
                 # check if UAV can serve the requested VNF
-                dist = self.distance(uav.position, request.user_position)
+                dist = distance(uav.position, request.user_position)
                 if dist < best_distance:
                     best_distance = dist
                     best_uav = uav
@@ -85,13 +76,13 @@ class SimulationEnvironment:
 
     def request_collection(self, request, uav):
         hap = self.haps[0]  # Assume only one HAP for now
-        dist_user_uav = self.distance(uav.position, request.user_position)
-        dist_uav_hap = self.distance(uav.position, hap.position)
+        dist_user_uav = distance(uav.position, request.user_position)
+        dist_uav_hap = distance(uav.position, hap.position)
     
-        bw_user_uav = self.bandwidth(dist_user_uav, link_type='user_uav')
-        bw_uav_hap = self.bandwidth(dist_uav_hap, link_type='uav_hap')
+        bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
+        bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
     
-        rcl = (self.a1 * (dist_user_uav / bw_user_uav)) + (self.a2 * (dist_uav_hap / bw_uav_hap))
+        rcl = (PARAMS.alpha1 * (dist_user_uav / bw_user_uav)) + (PARAMS.alpha2 * (dist_uav_hap / bw_uav_hap))
         return rcl
     
     def decision_making(self):
