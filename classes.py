@@ -1,3 +1,4 @@
+from main import distance 
 
 PARAMS = {
     "VNF_set" : [],
@@ -26,6 +27,7 @@ class UAV:
     def __init__(self, uav_id, position, max_vnfs, communication_range):
         self.uav_id = uav_id
         self.position = position  # (x, y, z) tuple
+        self.last_movement = 0
         self.max_vnfs = max_vnfs
         self.communication_range = communication_range
         self.active_vnfs = set()
@@ -39,6 +41,7 @@ class UAV:
         self.active_vnfs.discard(vnf_id)
     
     def move_to(self, new_position):
+        self.last_movement = distance(self.position, new_position)
         self.position = new_position
 
     def can_serve_user(self, user_position):
