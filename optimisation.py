@@ -1,12 +1,15 @@
 import math
 import random
+import numpy as np
 from main import bandwidth, distance
 from classes import PARAMS
+import time
 
 class GWO:
     def __init__(self, uavs, haps, requests):
         self.uavs = uavs
         self.haps = haps
+        self.max_iter = 500
         self.requests = requests
 
     def fitness(self, uav_positions):
@@ -27,7 +30,7 @@ class GWO:
                 bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
                 bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
                 # calculate request collection latency
-                rcl = (PARAMS.alpha1 * (dist_user_uav / bw_user_uav)) + (PARAMS.alpha2 * (dist_uav_hap / bw_uav_hap))
+                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
                 if rcl < best_latency:
                     best_latency = rcl
 
@@ -54,7 +57,7 @@ class GWO:
         return X_leader
 
     def optimise(self):
-        print("Running GWO Optimization...")
+        start_time = time.time()
 
         # 1. Initialize wolf positions
         wolves = [uav.position for uav in self.uavs]
@@ -99,13 +102,121 @@ class GWO:
         # 5. Update UAVs with new best positions
         for i, uav in enumerate(self.uavs):
             uav.move_to(wolves[i])
+        return (time.time() - start_time)
 
 class PSO:
     def __init__(self, uavs, haps, requests):
         self.uavs = uavs
         self.haps = haps
+        self.num_uavs = len(uavs)
+        self.num_vnfs = 10
+        self.max_iter = 500
+        self.swarm_size = 30
         self.requests = requests
 
+    def initialise_swarm(self):
+        particles = []
+        velocities = []
+        for _ in range(self.swarm_size):
+            # Random binary matrix for VNF activation (UAVs x VNFs)
+            particle = np.random.randint(0, 2, (self.num_uavs, self.num_vnfs))
+            velocity = np.random.uniform(-1, 1, (self.num_uavs, self.num_vnfs))
+            particles.append(particle)
+            velocities.append(velocity)
+        return particles, velocities
+
+    def fitness(self, particle):
+        # Evaluate latency for this particle (VNF activation pattern)
+        total_latency = 0
+
+        hap = self.haps[0]
+
+        for request in self.requests:
+            best_latency = float('inf')
+            for uav_idx, uav in enumerate(self.uavs):
+                # UAV must have all VNFs requested
+                vnfs_needed = set(request.requested_vnfs)
+                vnfs_active = set(np.where(particle[uav_idx] == 1)[0])
+                if not vnfs_needed.issubset(vnfs_active):
+                    continue  # UAV cannot serve this request
+
+                dist_user_uav = distance(uav.position, request.user_position)
+                dist_uav_hap = distance(uav.position, hap.position)
+
+                if dist_user_uav > PARAMS["R_v"] or dist_uav_hap > PARAMS["R_h"]:
+                    continue  # Out of communication range
+
+                bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
+                bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
+
+                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + \
+                      (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
+
+                if rcl < best_latency:
+                    best_latency = rcl
+
+            if best_latency == float('inf'):
+                best_latency = 1e9  # Big penalty if request cannot be served
+
+            total_latency += best_latency
+
+        return total_latency
+
+    def sigmoid(self, x):
+        return 1 / (1 + math.exp(-x))
+
     def optimise(self):
-        # Placeholder for PSO Logic
-        print("Running PSO Optimization...")
+        start_time = time.time()
+
+        particles, velocities = self.initialise_swarm()
+
+        # Personal best
+        pbest = particles.copy()
+        pbest_scores = [self.fitness(p) for p in pbest]
+
+        # Global best
+        gbest_idx = np.argmin(pbest_scores)
+        gbest = pbest[gbest_idx]
+        gbest_score = pbest_scores[gbest_idx]
+
+        w = 0.7  # inertia
+        c1 = 1.5 # personal best weight
+        c2 = 1.5 # global best weight
+
+        for iteration in range(self.max_iter):
+            for i in range(self.swarm_size):
+                for u in range(self.num_uavs):
+                    for v in range(self.num_vnfs):
+                        r1 = random.random()
+                        r2 = random.random()
+                        velocities[i][u][v] = (w * velocities[i][u][v] +
+                                               c1 * r1 * (pbest[i][u][v] - particles[i][u][v]) +
+                                               c2 * r2 * (gbest[u][v] - particles[i][u][v]))
+
+                        # Update particle using sigmoid + probability threshold
+                        if random.random() < self.sigmoid(velocities[i][u][v]):
+                            particles[i][u][v] = 1
+                        else:
+                            particles[i][u][v] = 0
+
+                # Evaluate new fitness
+                score = self.fitness(particles[i])
+
+                # Update personal best
+                if score < pbest_scores[i]:
+                    pbest[i] = particles[i].copy()
+                    pbest_scores[i] = score
+
+                    # Update global best
+                    if score < gbest_score:
+                        gbest = particles[i].copy()
+                        gbest_score = score
+
+            print(f"Iteration {iteration}: Best latency = {gbest_score}")
+
+        # 5. Update UAVs' active VNFs
+        for uav_idx, uav in enumerate(self.uavs):
+            active_vnfs = set(np.where(gbest[uav_idx] == 1)[0])
+            uav.active_vnfs = active_vnfs
+
+        return time.time() - start_time

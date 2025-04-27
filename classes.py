@@ -54,5 +54,3 @@ class HAP:
         self.hap_id = hap_id
         self.position = position  # (x, y, z) tuple
         self.communication_range = communication_range
-
-

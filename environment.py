@@ -1,5 +1,4 @@
 import random
-import pandas as pd
 from main import bandwidth, distance
 from collections import deque
 from classes import UAV
@@ -82,7 +81,7 @@ class SimulationEnvironment:
         bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
         bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
     
-        rcl = (PARAMS.alpha1 * (dist_user_uav / bw_user_uav)) + (PARAMS.alpha2 * (dist_uav_hap / bw_uav_hap))
+        rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
         return rcl
     
     def decision_making(self):
