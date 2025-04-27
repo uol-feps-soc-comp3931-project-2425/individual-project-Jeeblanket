@@ -49,7 +49,7 @@ class SimulationEnvironment:
 
     def optimise_network(self):
         # calls GWO
-        gwo_optimiser = GWO(self.uavs, self.haps, self.user_requests)
+        gwo_optimiser = GWO(self.uavs, self.haps, request)
         gwo_optimiser.optimise()
     
     def optimise_vnfs(self):
