@@ -1,11 +1,12 @@
 import math
 import random
+from main import bandwidth
 
 class GWO:
-    def __init__(self, uavs, haps, request):
+    def __init__(self, uavs, haps, requests):
         self.uavs = uavs
         self.haps = haps
-        self.request = request
+        self.requests = requests
 
     def calculate_distance(self, pos1, pos2):
         return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
@@ -15,13 +16,27 @@ class GWO:
         # Calculate total latency based on UAV positions
         # (use a simplified or estimated latency here)
         total_latency = 0
+
+        hap = self.haps[0]
+
         for request in self.requests:
             best_latency = float('inf')
             for pos in uav_positions:
-                dist = self.calculate_distance(pos, request.user_position)
-                latency = dist  # For now assume latency ~ distance (later improve)
-                if latency < best_latency:
-                    best_latency = latency
+                # check distance from UAV to user
+                dist_user_uav = self.calculate_distance(pos, request.user_position)
+                # check distance form uav to hap
+                dist_uav_hap = self.calculate_distance(pos, hap.position)
+                # calculate bandwidths
+                bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
+                bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
+                # calculate request collection latency
+                rcl = (self.a1 * (dist_user_uav / bw_user_uav)) + (self.a2 * (dist_uav_hap / bw_uav_hap))
+                if rcl < best_latency:
+                    best_latency = rcl
+            # if no uav can serve, penalise heavily
+            if best_latency == float('inf'):
+                best_latency = 1e9  # Large penalty
+
             total_latency += best_latency
         return total_latency
     
@@ -92,10 +107,10 @@ class GWO:
             uav.move_to(wolves[i])
 
 class PSO:
-    def __init__(self, uavs, haps, request):
+    def __init__(self, uavs, haps, requests):
         self.uavs = uavs
         self.haps = haps
-        self.request = request
+        self.requests = requests
 
     def optimise(self):
         # Placeholder for PSO Logic
