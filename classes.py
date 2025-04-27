@@ -1,15 +1,13 @@
-import numpy as np
-import random
 
 PARAMS = {
     "VNF_set" : [],
     "C" : 4,                # max VNFs per UAV
-    "V_max": 0,            # max UAVs active
-    "A_max": 0,            # max VNF activations per interval
+    "V_max": 0,             # max UAVs active
+    "A_max": 0,             # max VNF activations per interval
     "R_v": 150000,          # range UAV in meters
-    "R_h": 400000,
+    "R_h": 400000,          # range of HAP in metres
     "BW_max_user_uav": 100, # mbps
-    "BW_max_uav_hap": 1000,
+    "BW_max_uav_hap": 1000, # mbps
     "latency_coeffs": {
         "alpha1": 0.2, "alpha2": 0.4,   #temp - change these
         "beta1": 0.3, "beta2": 0.1,
@@ -57,6 +55,4 @@ class HAP:
         self.position = position  # (x, y, z) tuple
         self.communication_range = communication_range
 
-class VNF:
-    pass
 
