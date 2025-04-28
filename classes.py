@@ -5,6 +5,7 @@ PARAMS = {
     "C" : 4,                # max VNFs per UAV
     "V_max": 0,             # max UAVs active
     "A_max": 0,             # max VNF activations per interval
+    "S_max": 0,             # max UAV mocement speed
     "R_v": 150000,          # range UAV in meters
     "R_h": 400000,          # range of HAP in metres
     "deltaT": 1,
@@ -37,6 +38,7 @@ class UAV:
         self.current_load = 0
         self.max_capacity = PARAMS["BW_max_user_uav"]
         self.is_active = True
+        self.max_move = PARAMS["S_max"] * PARAMS["deltaT"]
     
     def activate_vnf(self, vnf_id):
         if len(self.active_vnfs) < self.max_vnfs:

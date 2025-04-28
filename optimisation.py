@@ -101,6 +101,23 @@ class GWO:
 
         # 5. Update UAVs with new best positions
         for i, uav in enumerate(self.uavs):
+            d = distance(uav.position, wolves[i].position)
+            
+            # enforcing constraint 2.20
+            # ensures the moce is phsycially possible within the timeframe
+            # and if not, scales it down
+            if d > uav.max_move:
+                dx = wolves[i][0] - uav.position[0]
+                dy = wolves[i][1] - uav.position[1]
+                dz = wolves[i][2] - uav.position[2]
+
+                scale = uav.max_move / d
+
+                new_pos = (
+                    wolves[i][0] + dx * scale,
+                    wolves[i][1] + dy * scale,
+                    wolves[i][2] + dz * scale
+                )
             uav.move_to(wolves[i])
         
             # check if UAV can reach HAP
@@ -113,7 +130,7 @@ class GWO:
                     break
             uav.is_active = reachable
 
-        # enforce constraint 2.18
+        # enforce constraint 2.18 + 2.19
         # get all UAVs that are still active
         active_uavs = [uav for uav in self.uavs if uav.is_active]
 
@@ -128,6 +145,7 @@ class GWO:
 
             for uav in uavs_to_deactivate:
                 uav.is_active = False
+
         return (time.time() - start_time)
 
 class PSO:
