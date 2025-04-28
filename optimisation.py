@@ -139,6 +139,7 @@ class GWO:
             delta = sorted_wolves[2]
 
             print(f"Iteration {iteration}: Best latency = {self.fitness([alpha])}")
+        end_time = time.time()
 
         # 5. Update UAVs with new best positions
         for i, uav in enumerate(self.uavs):
@@ -187,8 +188,7 @@ class GWO:
         #     for uav in uavs_to_deactivate:
         #         uav.is_active = False
 
-        print(time.time() - start_time)
-        return (time.time() - start_time)
+        return (end_time - start_time)
 
 class PSO:
     def __init__(self, uavs, haps, requests):

@@ -17,8 +17,8 @@ PARAMS = {
     "BW_max_uav_hap": 500,  # mbps
     "latency_coeffs": {
         "alpha1": 0.1, "alpha2": 0.2,   #temp - change these
-        "beta1": 0.3, "beta2": 0.5,
-        "gamma1": 1.2, "gamma2": 0.2, 
+        "beta1": 0.3, "beta2": 0.000005,
+        "gamma1": 0.9, "gamma2": 0.2, 
         "delta1": 0.1
     }
 }
