@@ -30,13 +30,15 @@ class SimulationEnvironment:
 
         # create UAVs
         for i in range(self.no_uavs):
-            position = (random.uniform(-100000, 100000), random.uniform(-100000, 100000), 9000)
+            position = (random.uniform(-50000, 50000), random.uniform(-50000, 50000), 9000)
             self.uavs.append(UAV(uav_id=i, position=position))
     
     def generate_user_requests(self):
         num_requests = np.random.poisson(self.lambda_arrival_rate)
+        print("Number of requests: " + str(num_requests))
         for i in range(num_requests):
-            position = (random.uniform(-100000, 100000), random.uniform(-100000, 100000), 0)
+            position = (random.uniform(-50000, 50000), random.uniform(-50000, 50000), 0)
+            print(position)
             requested_vnfs = random.sample(range(10), random.randint(1, 3))
             new_request = UserRequest(request_id=len(self.user_requests), user_position=position, requested_vnfs=requested_vnfs)
 
@@ -139,6 +141,7 @@ class SimulationEnvironment:
         processed_latencies = []
     
         while self.pending_requests:
+            print(str(len(self.pending_requests)) + " pending requests left")
             request = self.pending_requests.popleft()  # FIFO processing
 
 
@@ -146,7 +149,7 @@ class SimulationEnvironment:
             if not assigned_uav:
                 # for debugging only, in reality if skipped need to gather next request
                 # need to be careful not to enter an infinite loop if all users cannot be assigned
-                print("request {request.request_id} could not be assigned to uav") 
+                print("request " + str(request.request_id) + " could not be assigned to uav") 
                 continue
             rcl = self.request_collection(request, assigned_uav)
             dml = self.decision_making()
@@ -170,8 +173,7 @@ class SimulationEnvironment:
         return processed_latencies
 
     def run_simulation(self):
-        for step in range(100):
-            print(f"--- Time Step {self.step} ---")
-            self.generate_user_requests()
-            self.process_requests()
+        print("--- Simulation Begin ---")
+        self.generate_user_requests()
+        self.process_requests()
         

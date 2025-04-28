@@ -12,28 +12,52 @@ class GWO:
         self.requests = requests
 
     def fitness(self, uav_positions):
-        # Calculate total latency based on UAV positions
-        # (simplified estimated latency here)
         total_latency = 0
-
         hap = self.haps[0]
 
         for request in self.requests:
             best_latency = float('inf')
+            assigned = False
+
             for pos in uav_positions:
-                # check distance from UAV to user
+                # Calculate distance
                 dist_user_uav = distance(pos, request.user_position)
-                # check distance form uav to hap
                 dist_uav_hap = distance(pos, hap.position)
-                # calculate bandwidths
+
+                # Check if within range
+                if dist_user_uav > PARAMS["R_v"] or dist_uav_hap > PARAMS["R_h"]:
+                    total_latency+= 1e6 # Penalty if UAV is out of HAP range or user out of uav range
+
+                # Calculate bandwidth
                 bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
                 bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
-                # calculate request collection latency
-                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
-                if rcl < best_latency:
-                    best_latency = rcl
 
-            total_latency += best_latency
+                if bw_user_uav <= 0 or bw_uav_hap <= 0:
+                    total_latency+= 1e6  # No usable link, penalty
+
+                # Calculate latencies
+                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + \
+                      (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
+            
+                pl = PARAMS["latency_coeffs"]["gamma1"] * PARAMS["S_max"] + \
+                     PARAMS["latency_coeffs"]["gamma2"] * (dist_uav_hap / bw_uav_hap)
+
+                prep = (PARAMS["latency_coeffs"]["beta1"] * (dist_uav_hap / bw_uav_hap)) + PARAMS["latency_coeffs"]["beta2"]
+
+                tx = PARAMS["latency_coeffs"]["delta1"] * (dist_user_uav / bw_user_uav)
+
+                latency = rcl + pl + prep + tx
+
+                if latency < best_latency:
+                    best_latency = latency
+                    assigned = True
+
+            if not assigned:
+                # No UAV could serve this request
+                total_latency += 1e9
+            else:
+                total_latency += best_latency
+
         return total_latency
     
     def update_position(self, current_pos, leader_pos, a):
@@ -52,6 +76,23 @@ class GWO:
             leader_pos[1] - A * D_leader[1],
             leader_pos[2] - A * D_leader[2]
         )
+
+        # check distance to HAP
+        hap = self.haps[0]  # assume only 1 HAP
+        dist_to_hap = distance(X_leader, hap.position)
+
+        if dist_to_hap > hap.communication_range:
+            # too far, pull back toward HAP
+            dx = hap.position[0] - X_leader[0]
+            dy = hap.position[1] - X_leader[1]
+            dz = hap.position[2] - X_leader[2]
+
+            scale = hap.communication_range / dist_to_hap  # shrink movement
+            X_leader = (
+                hap.position[0] - dx * scale,
+                hap.position[1] - dy * scale,
+                hap.position[2] - dz * scale
+            )
 
         return X_leader
 
@@ -132,19 +173,19 @@ class GWO:
 
         # enforce constraint 2.18 + 2.19
         # get all UAVs that are still active
-        active_uavs = [uav for uav in self.uavs if uav.is_active]
+        # active_uavs = [uav for uav in self.uavs if uav.is_active]
 
-        # If too many active UAVs, deactivate randomly
-        if len(active_uavs) > PARAMS["V_max"]:
-            # Sort UAVs by number of connected users (ascending),
-            # and then by current load if there is a tie
-            active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
-            # pick excess UAVs to deactivate (least useful first)
-            excess = len(active_uavs) - PARAMS["V_max"]
-            uavs_to_deactivate = active_uavs[:excess]
+        # # If too many active UAVs, deactivate randomly
+        # if len(active_uavs) > PARAMS["V_max"]:
+        #     # Sort UAVs by number of connected users (ascending),
+        #     # and then by current load if there is a tie
+        #     active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
+        #     # pick excess UAVs to deactivate (least useful first)
+        #     excess = len(active_uavs) - PARAMS["V_max"]
+        #     uavs_to_deactivate = active_uavs[:excess]
 
-            for uav in uavs_to_deactivate:
-                uav.is_active = False
+        #     for uav in uavs_to_deactivate:
+        #         uav.is_active = False
 
         print(time.time() - start_time)
         return (time.time() - start_time)
@@ -231,9 +272,9 @@ class PSO:
         gbest = pbest[gbest_idx]
         gbest_score = pbest_scores[gbest_idx]
 
-        w = 0.7  # inertia
+        w = 0.9  # inertia
         c1 = 1.5 # personal best weight
-        c2 = 1.5 # global best weight
+        c2 = 2.0 # global best weight
     
         # PSO main loop
         for iteration in range(self.max_iter):
@@ -255,6 +296,8 @@ class PSO:
                     if score < gbest_score:
                         gbest = particles[i].copy()
                         gbest_score = score
+            if iteration % 10 == 0:
+                w -= 0.05
 
             print(f"Iteration {iteration}: Best latency = {gbest_score}")
 

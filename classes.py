@@ -2,22 +2,22 @@ from math import sqrt
 
 PARAMS = {
     "VNF_set" : [],
-    "U": 200,               # number of UAVs in the system
+    "U": 500,               # number of UAVs in the system
     "C" : 4,                # max VNFs per UAV
-    "R": 20,                # requests per unit time
-    "V_max": 3,             # max UAVs active
+    "R": 5,                # requests per unit time
+    "V_max": 30,             # max UAVs active
     "A_max": 20,             # max VNF activations per interval
-    "S_max": 53,             # max UAV movement speed
+    "S_max": 120,             # max UAV movement speed
     "R_v": 150000,          # range UAV in meters
     "R_h": 400000,          # range of HAP in metres
     "deltaT": 1,            # timestep 
     "BW_max_user_uav": 100, # mbps
     "BW_max_uav_hap": 1000, # mbps
     "latency_coeffs": {
-        "alpha1": 0.2, "alpha2": 0.4,   #temp - change these
-        "beta1": 0.3, "beta2": 0.1,
-        "gamma1": 1.2, "gamma2": 0.6, 
-        "delta1": 0.3
+        "alpha1": 0.1, "alpha2": 0.2,   #temp - change these
+        "beta1": 0.3, "beta2": 0.5,
+        "gamma1": 1.2, "gamma2": 0.2, 
+        "delta1": 0.1
     }
 }
 
@@ -54,7 +54,7 @@ class UAV:
         self.position = new_position
     
     def move(self):
-        res = self.last_movement * PARAMS["S_max"]
+        res = self.last_movement / PARAMS["S_max"]
         return res
 
     def can_serve_user(self, user_position):
