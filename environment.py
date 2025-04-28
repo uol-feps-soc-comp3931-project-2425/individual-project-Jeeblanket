@@ -46,12 +46,12 @@ class SimulationEnvironment:
     def optimise_network(self):
         # calls GWO
         gwo_optimiser = GWO(self.uavs, self.haps, self.pending_requests)
-        gwo_optimiser.optimise()
+        return gwo_optimiser.optimise()
     
     def optimise_vnfs(self):
         # calls PSO
         pso_optimiser = PSO(self.uavs, self.haps, self.pending_requests)
-        pso_optimiser.optimise()
+        return pso_optimiser.optimise()
 
 
     def assign_user_to_uav(self, request):
@@ -61,26 +61,27 @@ class SimulationEnvironment:
  
         for uav in self.uavs:
             if not uav.can_serve_user(request.user_position):
+                # enforces assignemtn range constraint
                 # check if UAV can serve the requested VNF
+                print("uav can not serve bc position")
                 continue
 
             # meeting constraint 2.15
             if not uav.is_active:
+                print("uav inactive")
                 continue  # skip inactive UAVs
 
-            # Check if UAV has the VNFs active
-            # meeting constraint 2.12
-            vnfs_needed = set(request.requested_vnfs)
-            if not vnfs_needed.issubset(uav.active_vnfs):
-                continue  # Cannot serve this request
+            # # Check if UAV has the VNFs active
+            # # meeting constraint 2.12
+            # vnfs_needed = set(request.requested_vnfs)
+            # if not vnfs_needed.issubset(uav.active_vnfs):
+            #     print("vnfs not active")
+            #     continue  # Cannot serve this request
 
             # meeting constraint 2.14
             if uav.current_load + request.demand > uav.max_capacity:
+                print("capacity would b exceeded")
                 continue  # This UAV cannot take more load
-
-            # enforces assignemtn range constraint
-            if not uav.can_serve_user(request.user_position):
-                continue
 
             dist = distance(uav.position, request.user_position)
             if dist < best_distance:
@@ -93,7 +94,7 @@ class SimulationEnvironment:
             return best_uav
         else:
             # No UAV found - queue for retry
-            self.pending_requests.append(request)
+            # self.pending_requests.append(request)
             return None
 
 
@@ -115,14 +116,14 @@ class SimulationEnvironment:
 
     def placement(self, uav):
         uav_movement = PARAMS["latency_coeffs"]["gamma1"] * uav.move()
-        dist = distance(uav.position, self.hap[0].position)
+        dist = distance(uav.position, self.haps[0].position)
         bw = bandwidth(dist, 'uav_hap')
         transmission = PARAMS["latency_coeffs"]["gamma2"] * (dist / bw)
         pl = uav_movement + transmission
         return pl
 
     def preparation(self, uav):
-        dist = distance(uav.position, self.hap[0].position)
+        dist = distance(uav.position, self.haps[0].position)
         bw = bandwidth(dist, 'uav_hap')
         prep = (PARAMS["latency_coeffs"]["beta1"] * (dist / bw)) + PARAMS["latency_coeffs"]["beta2"]
         return prep
@@ -148,9 +149,9 @@ class SimulationEnvironment:
                 print("request {request.request_id} could not be assigned to uav") 
                 continue
             rcl = self.request_collection(request, assigned_uav)
-            dml = self.decision_making(request, assigned_uav)
-            pl = self.placement(request, assigned_uav)
-            prep = self.preparation(request, assigned_uav)
+            dml = self.decision_making()
+            pl = self.placement(assigned_uav)
+            prep = self.preparation(assigned_uav)
             tx = self.transmission(request, assigned_uav)
         
             total_latency = rcl + dml + pl + prep + tx

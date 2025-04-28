@@ -52,6 +52,10 @@ class UAV:
     def move_to(self, new_position):
         self.last_movement = distance(self.position, new_position)
         self.position = new_position
+    
+    def move(self):
+        res = self.last_movement * PARAMS["S_max"]
+        return res
 
     def can_serve_user(self, user_position):
         # Calculate Euclidean distance

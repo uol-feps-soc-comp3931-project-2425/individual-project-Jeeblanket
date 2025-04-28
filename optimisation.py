@@ -8,7 +8,7 @@ class GWO:
     def __init__(self, uavs, haps, requests):
         self.uavs = uavs
         self.haps = haps
-        self.max_iter = 500
+        self.max_iter = 100
         self.requests = requests
 
     def fitness(self, uav_positions):
@@ -56,6 +56,7 @@ class GWO:
         return X_leader
 
     def optimise(self):
+        print("GWO optimiser has begun")
         start_time = time.time()
 
         # 1. Initialize wolf positions
@@ -100,7 +101,7 @@ class GWO:
 
         # 5. Update UAVs with new best positions
         for i, uav in enumerate(self.uavs):
-            d = distance(uav.position, wolves[i].position)
+            d = distance(uav.position, wolves[i])
             
             # enforcing constraint 2.20
             # ensures the moce is phsycially possible within the timeframe
@@ -145,6 +146,7 @@ class GWO:
             for uav in uavs_to_deactivate:
                 uav.is_active = False
 
+        print(time.time() - start_time)
         return (time.time() - start_time)
 
 class PSO:
@@ -153,7 +155,7 @@ class PSO:
         self.haps = haps
         self.num_uavs = len(uavs)
         self.num_vnfs = 10
-        self.max_iter = 500
+        self.max_iter = 100
         self.swarm_size = 30
         self.requests = requests
 
@@ -206,20 +208,17 @@ class PSO:
         return total_latency
 
     def sigmoid(self, x):
-        return 1 / (1 + exp(-x))
+        return 1 / (1 + np.exp(-x))
 
     def optimise(self):
-
-        old_activations = []
-        for uav in self.uavs:
-            # 1 if active, 0 if not
-            state = np.zeros(self.num_vnfs)
-            for vnf in uav.active_vnfs:
-                state[vnf] = 1
-            old_activations.append(state)
-        old_activations = np.array(old_activations)
-
+        print("PSO optimiser has begun")
         start_time = time.time()
+
+        # get old activation states (shape: num_uavs x num_vnfs)
+        old_activations = np.zeros((self.num_uavs, self.num_vnfs))
+        for idx, uav in enumerate(self.uavs):
+            for vnf in uav.active_vnfs:
+                old_activations[idx, vnf] = 1
 
         particles, velocities = self.initialise_swarm()
 
@@ -235,32 +234,24 @@ class PSO:
         w = 0.7  # inertia
         c1 = 1.5 # personal best weight
         c2 = 1.5 # global best weight
-
+    
+        # PSO main loop
         for iteration in range(self.max_iter):
             for i in range(self.swarm_size):
-                for u in range(self.num_uavs):
-                    for v in range(self.num_vnfs):
-                        r1 = random.random()
-                        r2 = random.random()
-                        velocities[i][u][v] = (w * velocities[i][u][v] +
-                                               c1 * r1 * (pbest[i][u][v] - particles[i][u][v]) +
-                                               c2 * r2 * (gbest[u][v] - particles[i][u][v]))
+                r1, r2 = np.random.rand(self.num_uavs, self.num_vnfs), np.random.rand(self.num_uavs, self.num_vnfs)
+                velocities[i] = (w * velocities[i] +
+                             c1 * r1 * (pbest[i] - particles[i]) +
+                             c2 * r2 * (gbest - particles[i]))
 
-                        # Update particle using sigmoid + probability threshold
-                        if random.random() < self.sigmoid(velocities[i][u][v]):
-                            particles[i][u][v] = 1
-                        else:
-                            particles[i][u][v] = 0
+                prob = self.sigmoid(velocities[i])
+                random_matrix = np.random.rand(self.num_uavs, self.num_vnfs)
+                particles[i] = (random_matrix < prob).astype(int)
 
-                # Evaluate new fitness
                 score = self.fitness(particles[i])
 
-                # Update personal best
                 if score < pbest_scores[i]:
                     pbest[i] = particles[i].copy()
                     pbest_scores[i] = score
-
-                    # Update global best
                     if score < gbest_score:
                         gbest = particles[i].copy()
                         gbest_score = score
@@ -268,81 +259,66 @@ class PSO:
             print(f"Iteration {iteration}: Best latency = {gbest_score}")
 
         end_time = time.time()
-        # 5. Update UAVs' active VNFs
-        new_activations = []
-        for uav_idx, uav in enumerate(self.uavs):
-            if not uav.is_active:
-                continue # skip inactive UAVs
 
-            active_vnfs = list(np.where(gbest[uav_idx] == 1)[0])
+        # Now finalize UAV states
+        new_activations = np.zeros((self.num_uavs, self.num_vnfs))
 
-            # enforce max_vnfs limit (constraint 2.13)
-            if len(active_vnfs) > uav.max_vnfs:
-                active_vnfs = random.sample(active_vnfs, uav.max_vnfs) # if limit is exceeded, vnfs to activate are selected randomly
+        # Build VNF demand once
+        vnf_demand = np.zeros(self.num_vnfs)
+        for request in self.requests:
+            for vnf_id in request.requested_vnfs:
+                vnf_demand[vnf_id] += 1
 
-            # build new activation state
-            new_state = np.zeros(self.num_vnfs)
-            for vnf_id in active_vnfs:
-                new_state[vnf_id] = 1
-            new_activations.append(new_state)
-
-        new_activations = np.array(new_activations)  # Shape (num_uavs, num_vnfs)
-
-        delta = new_activations - old_activations  # Difference
-        new_vnf_activations = np.sum(delta == 1)   # Count new activations
-
-        # enforcing constraints 2.19 and 2.20
-        if new_vnf_activations > PARAMS["A_max"]:
-            print(f"Warning: {new_vnf_activations} new activations exceeds Amax ({PARAMS['A_max']}). Prioritizing important VNFs...")
-
-            # build VNF demand count
-            vnf_demand = np.zeros(self.num_vnfs)
-            for request in self.requests:
-                for vnf_id in request.requested_vnfs:
-                    vnf_demand[vnf_id] += 1
-
-            # find indices where new activations occurred
-            new_activation_indices = np.argwhere(delta == 1)
-
-            # sort by VNF demand (most important first)
-            sorted_new_activations = sorted(new_activation_indices, 
-                                    key=lambda idx: vnf_demand[idx[1]], 
-                                    reverse=True)
-
-            # keep only top Amax activations
-            allowed_indices = sorted_new_activations[:PARAMS["A_max"]]
-
-            # reset all
-            delta[:, :] = 0
-
-            # re activate only allowed ones
-            for idx in allowed_indices:
-                delta[idx[0], idx[1]] = 1
-
-            new_activations = old_activations + delta
-            # enforces constraint 2.21
-            new_activations = np.clip(new_activations, 0, 1)
-
-        # finalize UAV updates
-        for uav_idx, uav in enumerate(self.uavs):
+        for idx, uav in enumerate(self.uavs):
             if not uav.is_active:
                 continue
 
-            # enforcing constraint 2.22
-            # find all VNFs actually needed by UAV's connected users
-            requested_vnfs = set()
+            # Find VNFs needed by users
+            needed_vnfs = set()
             for user in uav.connected_users:
-                requested_vnfs.update(user.requested_vnfs)
+                needed_vnfs.update(user.requested_vnfs)
 
-            # filter UAV's active VNFs
-            active_vnfs = list(np.where(new_activations[uav_idx] == 1)[0])
-            valid_vnfs = [vnf for vnf in active_vnfs if vnf in requested_vnfs]
+            activated = np.where(gbest[idx] == 1)[0]
+            valid_activated = [vnf for vnf in activated if vnf in needed_vnfs]
 
-            # enforce max_vnfs limit
-            if len(valid_vnfs) > uav.max_vnfs:
-                valid_vnfs = random.sample(valid_vnfs, uav.max_vnfs)
+            if len(valid_activated) > uav.max_vnfs:
+                valid_activated = random.sample(valid_activated, uav.max_vnfs)
 
-            # update UAV's active VNFs
-            uav.active_vnfs = set(valid_vnfs)
+            for vnf_id in valid_activated:
+                new_activations[idx, vnf_id] = 1
 
+        # Constraint: A_max
+        delta = new_activations - old_activations
+        new_activations_count = np.sum(delta == 1)
+
+        if new_activations_count > PARAMS["A_max"]:
+            print(f" New activations ({new_activations_count}) exceed A_max ({PARAMS['A_max']}) - applying limit.")
+
+            new_indices = np.argwhere(delta == 1)
+
+            # prioritize new activations based on VNF demand
+            new_indices_sorted = sorted(new_indices, key=lambda x: vnf_demand[x[1]], reverse=True)
+
+            allowed = new_indices_sorted[:PARAMS["A_max"]]
+            delta[:] = 0  # Reset all
+            for idx in allowed:
+                delta[idx[0], idx[1]] = 1
+
+            new_activations = old_activations + delta
+            new_activations = np.clip(new_activations, 0, 1)  # Keep 0/1
+
+        for idx, uav in enumerate(self.uavs):
+            if not uav.is_active:
+                continue
+
+            # find VNFs that PSO wants active
+            vnf_indices = np.where(new_activations[idx] == 1)[0]
+
+            # clear old VNFs first (optional but recommended)
+            uav.active_vnfs.clear()
+
+            for vnf_id in vnf_indices:
+                uav.activate_vnf(vnf_id)
+
+        print(time.time() - start_time)
         return end_time - start_time
