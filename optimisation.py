@@ -112,6 +112,22 @@ class GWO:
                     reachable = True
                     break
             uav.is_active = reachable
+
+        # enforce constraint 2.18
+        # get all UAVs that are still active
+        active_uavs = [uav for uav in self.uavs if uav.is_active]
+
+        # If too many active UAVs, deactivate randomly
+        if len(active_uavs) > PARAMS["V_max"]:
+            # Sort UAVs by number of connected users (ascending),
+            # and then by current load if there is a tie
+            active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
+            # pick excess UAVs to deactivate (least useful first)
+            excess = len(active_uavs) - PARAMS["V_max"]
+            uavs_to_deactivate = active_uavs[:excess]
+
+            for uav in uavs_to_deactivate:
+                uav.is_active = False
         return (time.time() - start_time)
 
 class PSO:
@@ -176,6 +192,16 @@ class PSO:
         return 1 / (1 + math.exp(-x))
 
     def optimise(self):
+
+        old_activations = []
+        for uav in self.uavs:
+            # 1 if active, 0 if not
+            state = np.zeros(self.num_vnfs)
+            for vnf in uav.active_vnfs:
+                state[vnf] = 1
+            old_activations.append(state)
+        old_activations = np.array(old_activations)
+
         start_time = time.time()
 
         particles, velocities = self.initialise_swarm()
@@ -224,14 +250,66 @@ class PSO:
 
             print(f"Iteration {iteration}: Best latency = {gbest_score}")
 
+        end_time = time.time()
         # 5. Update UAVs' active VNFs
+        new_activations = []
         for uav_idx, uav in enumerate(self.uavs):
             if not uav.is_active:
                 continue # skip inactive UAVs
+
             active_vnfs = list(np.where(gbest[uav_idx] == 1)[0])
+
             # enforce max_vnfs limit (constraint 2.13)
             if len(active_vnfs) > uav.max_vnfs:
                 active_vnfs = random.sample(active_vnfs, uav.max_vnfs) # if limit is exceeded, vnfs to activate are selected randomly
+
+            # build new activation state
+            new_state = np.zeros(self.num_vnfs)
+            for vnf_id in active_vnfs:
+                new_state[vnf_id] = 1
+            new_activations.append(new_state)
+
+        new_activations = np.array(new_activations)  # Shape (num_uavs, num_vnfs)
+
+        delta = new_activations - old_activations  # Difference
+        new_vnf_activations = np.sum(delta == 1)   # Count new activations
+
+        # enforcing constraints 2.19 and 2.20
+        if new_vnf_activations > PARAMS["A_max"]:
+            print(f"Warning: {new_vnf_activations} new activations exceeds Amax ({PARAMS['A_max']}). Prioritizing important VNFs...")
+
+            # build VNF demand count
+            vnf_demand = np.zeros(self.num_vnfs)
+            for request in self.requests:
+                for vnf_id in request.requested_vnfs:
+                    vnf_demand[vnf_id] += 1
+
+            # find indices where new activations occurred
+            new_activation_indices = np.argwhere(delta == 1)
+
+            # sort by VNF demand (most important first)
+            sorted_new_activations = sorted(new_activation_indices, 
+                                    key=lambda idx: vnf_demand[idx[1]], 
+                                    reverse=True)
+
+            # keep only top Amax activations
+            allowed_indices = sorted_new_activations[:PARAMS["A_max"]]
+
+            # reset all
+            delta[:, :] = 0
+
+            # re activate only allowed ones
+            for idx in allowed_indices:
+                delta[idx[0], idx[1]] = 1
+
+            new_activations = old_activations + delta
+            new_activations = np.clip(new_activations, 0, 1)
+
+        # finalize UAV updates
+        for uav_idx, uav in enumerate(self.uavs):
+            if not uav.is_active:
+                continue
+            active_vnfs = list(np.where(new_activations[uav_idx] == 1)[0])
             uav.active_vnfs = set(active_vnfs)
 
-        return time.time() - start_time
+        return end_time - start_time

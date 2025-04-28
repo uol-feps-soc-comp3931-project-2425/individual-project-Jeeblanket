@@ -7,6 +7,7 @@ PARAMS = {
     "A_max": 0,             # max VNF activations per interval
     "R_v": 150000,          # range UAV in meters
     "R_h": 400000,          # range of HAP in metres
+    "deltaT": 1,
     "BW_max_user_uav": 100, # mbps
     "BW_max_uav_hap": 1000, # mbps
     "latency_coeffs": {
