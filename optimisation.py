@@ -321,6 +321,7 @@ class PSO:
                 delta[idx[0], idx[1]] = 1
 
             new_activations = old_activations + delta
+            # enforces constraint 2.21
             new_activations = np.clip(new_activations, 0, 1)
 
         # finalize UAV updates
