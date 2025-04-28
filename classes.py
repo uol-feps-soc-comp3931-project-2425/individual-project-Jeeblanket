@@ -11,8 +11,8 @@ PARAMS = {
     "R_v": 150000,          # range UAV in meters
     "R_h": 400000,          # range of HAP in metres
     "deltaT": 1,            # timestep 
-    "BW_max_user_uav": 100, # mbps
-    "BW_max_uav_hap": 1000, # mbps
+    "BW_max_user_uav": 50, # mbps
+    "BW_max_uav_hap": 500, # mbps
     "latency_coeffs": {
         "alpha1": 0.1, "alpha2": 0.2,   #temp - change these
         "beta1": 0.3, "beta2": 0.5,
