@@ -1,10 +1,10 @@
 import random
-from main import bandwidth, distance
 from collections import deque
 from classes import UAV
 from classes import HAP
 from classes import UserRequest
 from classes import PARAMS
+from classes import bandwidth, distance
 from optimisation import PSO
 from optimisation import GWO
 

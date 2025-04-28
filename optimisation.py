@@ -1,8 +1,7 @@
-import math
+from math import exp
 import random
 import numpy as np
-from main import bandwidth, distance
-from classes import PARAMS
+from classes import PARAMS, bandwidth, distance
 import time
 
 class GWO:
@@ -207,7 +206,7 @@ class PSO:
         return total_latency
 
     def sigmoid(self, x):
-        return 1 / (1 + math.exp(-x))
+        return 1 / (1 + exp(-x))
 
     def optimise(self):
 
