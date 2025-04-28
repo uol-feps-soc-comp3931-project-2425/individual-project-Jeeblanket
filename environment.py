@@ -1,3 +1,4 @@
+import numpy as np
 import random
 from collections import deque
 from classes import UAV
@@ -9,31 +10,31 @@ from optimisation import PSO
 from optimisation import GWO
 
 class SimulationEnvironment:
-    def __init__(self, no_uavs, lambda_arrival_rate, max_vnfs):
+    def __init__(self):
         self.uavs = []  # set of all UAVs
         self.haps = []  # set of all HAPs
         self.user_requests = [] # set of all generated requests
         self.pending_requests = deque() # queue for attending to requests
         self.time = 0
-        self.lambda_arrival_rate = lambda_arrival_rate  # requests per unit time
+        self.lambda_arrival_rate = PARAMS["R"]  # requests per unit time
         self.step = PARAMS["deltaT"]    # timestep between reconfiguration
-        self.no_uavs = no_uavs  # number of UAVs in the system
+        self.no_uavs = PARAMS["U"]  # number of UAVs in the system
         self.latency_records = []   # record for analysis
-        self.max_vnfs = max_vnfs    # max number of vnfs allowed to be active on a UAV
+        self.max_vnfs = PARAMS["C"]   # max number of vnfs allowed to be active on a UAV
 
         self.initialize_network()
 
     def initialize_network(self):
         # create HAPs
-        self.haps.append(HAP(hap_id=0, position=(0, 0, 20000), communication_range=400000))
+        self.haps.append(HAP(hap_id=0, position=(0, 0, 20000)))
 
         # create UAVs
         for i in range(self.no_uavs):
             position = (random.uniform(-100000, 100000), random.uniform(-100000, 100000), 9000)
-            self.uavs.append(UAV(uav_id=i, position=position, max_vnfs=self.max_vnfs, communication_range=150000))
+            self.uavs.append(UAV(uav_id=i, position=position))
     
     def generate_user_requests(self):
-        num_requests = random.poisson(self.lambda_arrival_rate)
+        num_requests = np.random.poisson(self.lambda_arrival_rate)
         for i in range(num_requests):
             position = (random.uniform(-100000, 100000), random.uniform(-100000, 100000), 0)
             requested_vnfs = random.sample(range(10), random.randint(1, 3))
@@ -171,5 +172,5 @@ class SimulationEnvironment:
         for step in range(100):
             print(f"--- Time Step {self.step} ---")
             self.generate_user_requests()
-            self.process_requests(step)
+            self.process_requests()
         

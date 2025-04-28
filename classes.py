@@ -2,7 +2,9 @@ from math import sqrt
 
 PARAMS = {
     "VNF_set" : [],
+    "U": 200,               # number of UAVs in the system
     "C" : 4,                # max VNFs per UAV
+    "R": 20,                # requests per unit time
     "V_max": 3,             # max UAVs active
     "A_max": 20,             # max VNF activations per interval
     "S_max": 53,             # max UAV movement speed
@@ -27,12 +29,12 @@ class UserRequest:
         self.demand = demand
 
 class UAV:
-    def __init__(self, uav_id, position, max_vnfs, communication_range):
+    def __init__(self, uav_id, position):
         self.uav_id = uav_id
         self.position = position  # (x, y, z) tuple
         self.last_movement = 0
-        self.max_vnfs = max_vnfs
-        self.communication_range = communication_range
+        self.max_vnfs = PARAMS["C"]
+        self.communication_range = PARAMS["R_v"]
         self.active_vnfs = set()
         self.connected_users = []
         self.current_load = 0
@@ -60,10 +62,10 @@ class UAV:
 
 
 class HAP:
-    def __init__(self, hap_id, position, communication_range):
+    def __init__(self, hap_id, position):
         self.hap_id = hap_id
         self.position = position  # (x, y, z) tuple
-        self.communication_range = communication_range
+        self.communication_range = PARAMS["R_h"]
 
 def distance(pos1, pos2):
         return sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
