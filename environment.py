@@ -9,14 +9,14 @@ from optimisation import PSO
 from optimisation import GWO
 
 class SimulationEnvironment:
-    def __init__(self, step, no_uavs, lambda_arrival_rate, max_vnfs):
+    def __init__(self, no_uavs, lambda_arrival_rate, max_vnfs):
         self.uavs = []  # set of all UAVs
         self.haps = []  # set of all HAPs
         self.user_requests = [] # set of all generated requests
         self.pending_requests = deque() # queue for attending to requests
         self.time = 0
         self.lambda_arrival_rate = lambda_arrival_rate  # requests per unit time
-        self.step = step    # timestep between reconfiguration (??)
+        self.step = PARAMS["deltaT"]    # timestep between reconfiguration
         self.no_uavs = no_uavs  # number of UAVs in the system
         self.latency_records = []   # record for analysis
         self.max_vnfs = max_vnfs    # max number of vnfs allowed to be active on a UAV

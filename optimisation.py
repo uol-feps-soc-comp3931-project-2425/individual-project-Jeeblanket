@@ -328,7 +328,22 @@ class PSO:
         for uav_idx, uav in enumerate(self.uavs):
             if not uav.is_active:
                 continue
+
+            # enforcing constraint 2.22
+            # find all VNFs actually needed by UAV's connected users
+            requested_vnfs = set()
+            for user in uav.connected_users:
+                requested_vnfs.update(user.requested_vnfs)
+
+            # filter UAV's active VNFs
             active_vnfs = list(np.where(new_activations[uav_idx] == 1)[0])
-            uav.active_vnfs = set(active_vnfs)
+            valid_vnfs = [vnf for vnf in active_vnfs if vnf in requested_vnfs]
+
+            # enforce max_vnfs limit
+            if len(valid_vnfs) > uav.max_vnfs:
+                valid_vnfs = random.sample(valid_vnfs, uav.max_vnfs)
+
+            # update UAV's active VNFs
+            uav.active_vnfs = set(valid_vnfs)
 
         return end_time - start_time

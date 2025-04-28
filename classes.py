@@ -3,12 +3,12 @@ from main import distance
 PARAMS = {
     "VNF_set" : [],
     "C" : 4,                # max VNFs per UAV
-    "V_max": 0,             # max UAVs active
-    "A_max": 0,             # max VNF activations per interval
-    "S_max": 0,             # max UAV mocement speed
+    "V_max": 3,             # max UAVs active
+    "A_max": 20,             # max VNF activations per interval
+    "S_max": 53,             # max UAV movement speed
     "R_v": 150000,          # range UAV in meters
     "R_h": 400000,          # range of HAP in metres
-    "deltaT": 1,
+    "deltaT": 1,            # timestep 
     "BW_max_user_uav": 100, # mbps
     "BW_max_uav_hap": 1000, # mbps
     "latency_coeffs": {
