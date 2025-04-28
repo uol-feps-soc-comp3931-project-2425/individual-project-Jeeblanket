@@ -30,14 +30,14 @@ class SimulationEnvironment:
 
         # create UAVs
         for i in range(self.no_uavs):
-            position = (random.uniform(-50000, 50000), random.uniform(-50000, 50000), 9000)
+            position = (random.uniform(-25000, 25000), random.uniform(-50000, 50000), 9000)
             self.uavs.append(UAV(uav_id=i, position=position))
     
     def generate_user_requests(self):
         num_requests = np.random.poisson(self.lambda_arrival_rate)
         print("Number of requests: " + str(num_requests))
         for i in range(num_requests):
-            position = (random.uniform(-50000, 50000), random.uniform(-50000, 50000), 0)
+            position = (random.uniform(-25000, 25000), random.uniform(-25000, 25000), 0)
             print(position)
             requested_vnfs = random.sample(range(10), random.randint(1, 3))
             new_request = UserRequest(request_id=len(self.user_requests), user_position=position, requested_vnfs=requested_vnfs)
@@ -107,11 +107,11 @@ class SimulationEnvironment:
         bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
         bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
     
-        rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
+        rcl = (PARAMS["latency_coeffs"]["alpha1"] * (PARAMS["S"] / bw_user_uav)) + (PARAMS["latency_coeffs"]["alpha2"] * (PARAMS["S"] / bw_uav_hap))
         return rcl
     
     def decision_making(self):
-        deployment= self.optimise_network()
+        deployment = self.optimise_network()
         placement = self.optimise_vnfs()
         dml = deployment + placement
         return dml
@@ -120,20 +120,20 @@ class SimulationEnvironment:
         uav_movement = PARAMS["latency_coeffs"]["gamma1"] * uav.move()
         dist = distance(uav.position, self.haps[0].position)
         bw = bandwidth(dist, 'uav_hap')
-        transmission = PARAMS["latency_coeffs"]["gamma2"] * (dist / bw)
+        transmission = PARAMS["latency_coeffs"]["gamma2"] * (PARAMS["B"] / bw)
         pl = uav_movement + transmission
         return pl
 
     def preparation(self, uav):
         dist = distance(uav.position, self.haps[0].position)
         bw = bandwidth(dist, 'uav_hap')
-        prep = (PARAMS["latency_coeffs"]["beta1"] * (dist / bw)) + PARAMS["latency_coeffs"]["beta2"]
+        prep = (PARAMS["latency_coeffs"]["beta1"] * (PARAMS["S"] / bw)) + PARAMS["latency_coeffs"]["beta2"]
         return prep
 
     def transmission(self, request, uav):
         dist = distance(uav.position,request.user_position)
         bw = bandwidth(dist, 'user_uav')
-        tx = PARAMS["latency_coeffs"]["delta1"] * (dist / bw)
+        tx = PARAMS["latency_coeffs"]["delta1"] * (PARAMS["S"] / bw)
         return tx
         
 
@@ -174,6 +174,7 @@ class SimulationEnvironment:
 
     def run_simulation(self):
         print("--- Simulation Begin ---")
+        # need to repeat this for however many time steps will simulate
         self.generate_user_requests()
         self.process_requests()
         

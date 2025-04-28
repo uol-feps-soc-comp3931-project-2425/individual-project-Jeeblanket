@@ -36,15 +36,15 @@ class GWO:
                     total_latency+= 1e6  # No usable link, penalty
 
                 # Calculate latencies
-                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + \
-                      (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
+                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (PARAMS["S"] / bw_user_uav)) + \
+                      (PARAMS["latency_coeffs"]["alpha2"] * (PARAMS["S"] / bw_uav_hap))
             
                 pl = PARAMS["latency_coeffs"]["gamma1"] * PARAMS["S_max"] + \
-                     PARAMS["latency_coeffs"]["gamma2"] * (dist_uav_hap / bw_uav_hap)
+                     PARAMS["latency_coeffs"]["gamma2"] * (PARAMS["S"] / bw_uav_hap)
 
-                prep = (PARAMS["latency_coeffs"]["beta1"] * (dist_uav_hap / bw_uav_hap)) + PARAMS["latency_coeffs"]["beta2"]
+                prep = (PARAMS["latency_coeffs"]["beta1"] * (PARAMS["S"] / bw_uav_hap)) + PARAMS["latency_coeffs"]["beta2"]
 
-                tx = PARAMS["latency_coeffs"]["delta1"] * (dist_user_uav / bw_user_uav)
+                tx = PARAMS["latency_coeffs"]["delta1"] * (PARAMS["S"] / bw_user_uav)
 
                 latency = rcl + pl + prep + tx
 

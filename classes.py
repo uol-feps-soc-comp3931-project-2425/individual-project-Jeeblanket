@@ -4,15 +4,17 @@ PARAMS = {
     "VNF_set" : [],
     "U": 500,               # number of UAVs in the system
     "C" : 4,                # max VNFs per UAV
-    "R": 5,                # requests per unit time
-    "V_max": 30,             # max UAVs active
-    "A_max": 20,             # max VNF activations per interval
-    "S_max": 120,             # max UAV movement speed
+    "R": 5,                 # requests per unit time
+    "S": 0.025,             # megabits for vnf message
+    "B": 192,               # approx number of bits for new position
+    "V_max": 30,            # max UAVs active
+    "A_max": 20,            # max VNF activations per interval
+    "S_max": 120,           # max UAV movement speed
     "R_v": 150000,          # range UAV in meters
     "R_h": 400000,          # range of HAP in metres
     "deltaT": 1,            # timestep 
-    "BW_max_user_uav": 50, # mbps
-    "BW_max_uav_hap": 500, # mbps
+    "BW_max_user_uav": 50,  # mbps
+    "BW_max_uav_hap": 500,  # mbps
     "latency_coeffs": {
         "alpha1": 0.1, "alpha2": 0.2,   #temp - change these
         "beta1": 0.3, "beta2": 0.5,
@@ -76,11 +78,11 @@ def distance(pos1, pos2):
 
 def bandwidth(distance, link_type):
     if link_type == 'user_uav':
-        BW_max = 100   # Mbps for User <-> UAV
-        R_max = 150000 # meters
+        BW_max = PARAMS["BW_max_user_uav"]   # Mbps for User <-> UAV
+        R_max = PARAMS["R_v"] # meters
     elif link_type == 'uav_hap':
-        BW_max = 1000  # Mbps for UAV <-> HAP
-        R_max = 400000 # meters
+        BW_max = PARAMS["BW_max_uav_hap"]  # Mbps for UAV <-> HAP
+        R_max = PARAMS["R_h"] # meters
     else:
         raise ValueError(f"Unknown link type: {link_type}")
 
