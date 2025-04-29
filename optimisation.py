@@ -8,8 +8,11 @@ class GWO:
     def __init__(self, uavs, haps, requests):
         self.uavs = uavs
         self.haps = haps
-        self.max_iter = 100
         self.requests = requests
+        self.max_iter = 100
+        self.stagnation_threshold = 20
+        self.mutation_interval = 20
+        self.noise_strength = 0.05
 
     def bandwidth_vectorized(self, dists, link_type):
         if link_type == 'user_uav':
@@ -20,191 +23,150 @@ class GWO:
             r_max = PARAMS["R_h"]
         else:
             raise ValueError("Unknown link type")
-
+        
         bw = bw_max * (1 - (dists / r_max))
         bw[dists > r_max] = 0
         return bw
 
     def fitness(self, uav_positions):
-        hap = self.haps[0]
-        hap_pos = np.array(hap.position)
-
-        num_requests = len(self.requests)
-        num_uavs = len(uav_positions)
-
-        # Stack request positions
+        hap_pos = np.array(self.haps[0].position)
         user_positions = np.array([req.user_position for req in self.requests])
 
-        # UAV positions array
-        uav_positions = np.array(uav_positions)
-
-        # Compute distances: (num_requests, num_uavs)
-        diff_user_uav = user_positions[:, np.newaxis, :] - uav_positions[np.newaxis, :, :]
+        diff_user_uav = user_positions[:, np.newaxis, :] - np.array(uav_positions)[np.newaxis, :, :]
         dists_user_uav = np.linalg.norm(diff_user_uav, axis=2)
 
-        dists_uav_hap = np.linalg.norm(uav_positions - hap_pos, axis=1)  # (num_uavs,)
-        dists_uav_hap = np.broadcast_to(dists_uav_hap, (num_requests, num_uavs))
+        dists_uav_hap = np.linalg.norm(np.array(uav_positions) - hap_pos, axis=1)
+        dists_uav_hap = np.broadcast_to(dists_uav_hap, (len(self.requests), len(uav_positions)))
 
-        # Compute bandwidths
-        bw_user_uav = self.bandwidth_vectorized(dists_user_uav, link_type='user_uav')
-        bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, link_type='uav_hap')
+        bw_user_uav = self.bandwidth_vectorized(dists_user_uav, 'user_uav')
+        bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, 'uav_hap')
 
-        # Validity mask: links must be within range and positive bandwidth
         valid_links = (dists_user_uav <= PARAMS["R_v"]) & (dists_uav_hap <= PARAMS["R_h"]) & (bw_user_uav > 0) & (bw_uav_hap > 0)
 
-        # Compute latency matrix (same as before)
         rcl = (PARAMS["latency_coeffs"]["alpha1"] * (PARAMS["S"] / bw_user_uav)) + \
-            (PARAMS["latency_coeffs"]["alpha2"] * (PARAMS["S"] / bw_uav_hap))
+              (PARAMS["latency_coeffs"]["alpha2"] * (PARAMS["S"] / bw_uav_hap))
 
-        pl = PARAMS["latency_coeffs"]["gamma1"] * PARAMS["S_max"] + \
-            PARAMS["latency_coeffs"]["gamma2"] * (PARAMS["S"] / bw_uav_hap)
-
+        pl = PARAMS["latency_coeffs"]["gamma1"] * PARAMS["S_max"] + PARAMS["latency_coeffs"]["gamma2"] * (PARAMS["S"] / bw_uav_hap)
         prep = (PARAMS["latency_coeffs"]["beta1"] * (PARAMS["S"] / bw_uav_hap)) + PARAMS["latency_coeffs"]["beta2"]
-
         tx = PARAMS["latency_coeffs"]["delta1"] * (PARAMS["S"] / bw_user_uav)
 
-        latency_matrix = rcl + pl + prep + tx  # shape (num_requests, num_uavs)
-
-        # Mask invalid links with large latency
+        latency_matrix = rcl + pl + prep + tx
         latency_matrix[~valid_links] = np.inf
 
-        # Pick best UAV per user
         best_latencies = np.min(latency_matrix, axis=1)
-
-        # Penalize unassignable users
         best_latencies[np.isinf(best_latencies)] = 1e9
 
-        # Total latency is sum
-        total_latency = np.sum(best_latencies)
-        return total_latency
-    
-    def update_position(self, current_pos, leader_pos, a):
-        r1 = random.random()
-        r2 = random.random()
+        return np.sum(best_latencies)
 
+    def update_position(self, current_pos, leader_pos, a):
+        r1, r2 = random.random(), random.random()
         A = 2 * a * r1 - a
         C = 2 * r2
 
-        D_leader = (abs(C * leader_pos[0] - current_pos[0]),
-                    abs(C * leader_pos[1] - current_pos[1]),
-                    abs(C * leader_pos[2] - current_pos[2]))
+        D_leader = np.abs(C * np.array(leader_pos) - np.array(current_pos))
+        X_leader = np.array(leader_pos) - A * D_leader
 
-        X_leader = (
-            leader_pos[0] - A * D_leader[0],
-            leader_pos[1] - A * D_leader[1],
-            leader_pos[2] - A * D_leader[2]
-        )
+        hap_pos = np.array(self.haps[0].position)
+        dist_to_hap = np.linalg.norm(X_leader - hap_pos)
 
-        # check distance to HAP
-        hap = self.haps[0]  # assume only 1 HAP
-        dist_to_hap = distance(X_leader, hap.position)
+        if dist_to_hap > self.haps[0].communication_range:
+            direction = hap_pos - X_leader
+            X_leader = hap_pos - direction * (self.haps[0].communication_range / dist_to_hap)
 
-        if dist_to_hap > hap.communication_range:
-            # too far, pull back toward HAP
-            dx = hap.position[0] - X_leader[0]
-            dy = hap.position[1] - X_leader[1]
-            dz = hap.position[2] - X_leader[2]
-
-            scale = hap.communication_range / dist_to_hap  # shrink movement
-            X_leader = (
-                hap.position[0] - dx * scale,
-                hap.position[1] - dy * scale,
-                hap.position[2] - dz * scale
-            )
-
-        return X_leader
+        return tuple(X_leader)
 
     def optimise(self):
         print("GWO optimiser has begun")
         start_time = time.time()
 
-        # 1. Initialize wolf positions
         wolves = [uav.position for uav in self.uavs]
+        fitness_scores = [self.fitness([wolf]) for wolf in wolves]
 
-        # 2. Evaluate fitness
-        fitness_scores = [self.fitness([wolf]) for wolf in wolves]  # evaluate each individually
+        sorted_pairs = sorted(zip(fitness_scores, wolves))
+        fitness_scores_sorted, sorted_wolves = zip(*sorted_pairs)
+        alpha, beta, delta = sorted_wolves[:3]
+        best_latency_now = fitness_scores_sorted[0]
 
-        # 3. Identify alpha (best), beta (second), delta (third)
-        sorted_wolves = [w for _, w in sorted(zip(fitness_scores, wolves))]
-        alpha = sorted_wolves[0]
-        beta = sorted_wolves[1]
-        delta = sorted_wolves[2]
+        prev_best_latency = best_latency_now
+        stagnation_counter = 0
+        self.best_latencies = [best_latency_now]
 
-        # 4. Iterate
         for iteration in range(self.max_iter):
-            a = 2 - (iteration * (2 / self.max_iter))  # linearly decrease 'a' from 2 to 0
+            a = 2 - (iteration * (2 / self.max_iter))
 
             new_wolves = []
             for wolf in wolves:
                 X1 = self.update_position(wolf, alpha, a)
                 X2 = self.update_position(wolf, beta, a)
                 X3 = self.update_position(wolf, delta, a)
-                
-                new_pos = (
-                    (X1[0] + X2[0] + X3[0]) / 3,
-                    (X1[1] + X2[1] + X3[1]) / 3,
-                    (X1[2] + X2[2] + X3[2]) / 3
-                )
+
+                new_pos = tuple(np.mean([X1, X2, X3], axis=0))
                 new_wolves.append(new_pos)
 
             wolves = new_wolves
 
-            # Update alpha, beta, delta based on new fitness
-            fitness_scores = [self.fitness([wolf]) for wolf in wolves]
-            sorted_wolves = [w for _, w in sorted(zip(fitness_scores, wolves))]
-            alpha = sorted_wolves[0]
-            beta = sorted_wolves[1]
-            delta = sorted_wolves[2]
+            # Add exploration kick every mutation_interval
+            if iteration % self.mutation_interval == 0 and iteration != 0:
+                wolves = [(pos[0] + np.random.uniform(-self.noise_strength, self.noise_strength),
+                           pos[1] + np.random.uniform(-self.noise_strength, self.noise_strength),
+                           pos[2] + np.random.uniform(-self.noise_strength, self.noise_strength)) for pos in wolves]
 
-            print(f"Iteration {iteration}: Best latency = {self.fitness([alpha])}")
+            fitness_scores = [self.fitness([wolf]) for wolf in wolves]
+            sorted_pairs = sorted(zip(fitness_scores, wolves))
+            fitness_scores_sorted, sorted_wolves = zip(*sorted_pairs)
+            alpha, beta, delta = sorted_wolves[:3]
+            best_latency_now = fitness_scores_sorted[0]
+
+            self.best_latencies.append(best_latency_now)
+
+            if abs(prev_best_latency - best_latency_now) < 1e-4:
+                stagnation_counter += 1
+            else:
+                stagnation_counter = 0
+
+            prev_best_latency = best_latency_now
+
+            print(f"Iteration {iteration}: Best latency = {best_latency_now}")
+
+            if stagnation_counter >= self.stagnation_threshold:
+                print(f"Early stopping at iteration {iteration} due to stagnation.")
+                break
+        
         end_time = time.time()
 
-        # 5. Update UAVs with new best positions
+        # Move UAVs to final positions
         for i, uav in enumerate(self.uavs):
-            d = distance(uav.position, wolves[i])
-            
-            # enforcing constraint 2.20
-            # ensures the moce is phsycially possible within the timeframe
-            # and if not, scales it down
-            if d > uav.max_move:
-                dx = wolves[i][0] - uav.position[0]
-                dy = wolves[i][1] - uav.position[1]
-                dz = wolves[i][2] - uav.position[2]
+            target_pos = wolves[i]
+            move_distance = distance(uav.position, target_pos)
+            if move_distance > uav.max_move:
+                direction = np.array(target_pos) - np.array(uav.position)
+                direction = direction * (uav.max_move / move_distance)
+                new_pos = np.array(uav.position) + direction
+                uav.move_to(tuple(new_pos))
+            else:
+                uav.move_to(target_pos)
 
-                scale = uav.max_move / d
-
-                new_pos = (
-                    wolves[i][0] + dx * scale,
-                    wolves[i][1] + dy * scale,
-                    wolves[i][2] + dz * scale
-                )
-            uav.move_to(wolves[i])
-        
-            # check if UAV can reach HAP
-            # enforcing constraint 2.17
+            # Check if UAV can reach HAP
             reachable = False
             for hap in self.haps:
-                d = distance(uav.position, hap.position)
-                if d <= hap.communication_range:
+                if distance(uav.position, hap.position) <= hap.communication_range:
                     reachable = True
                     break
             uav.is_active = reachable
 
-        # enforce constraint 2.18 + 2.19
-        # get all UAVs that are still active
-        # active_uavs = [uav for uav in self.uavs if uav.is_active]
+            # Enforce constraint 2.18 + 2.19: Limit active UAVs
+            active_uavs = [uav for uav in self.uavs if uav.is_active]
 
-        # # If too many active UAVs, deactivate randomly
-        # if len(active_uavs) > PARAMS["V_max"]:
-        #     # Sort UAVs by number of connected users (ascending),
-        #     # and then by current load if there is a tie
-        #     active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
-        #     # pick excess UAVs to deactivate (least useful first)
-        #     excess = len(active_uavs) - PARAMS["V_max"]
-        #     uavs_to_deactivate = active_uavs[:excess]
+            if len(active_uavs) > PARAMS["V_max"]:
+                # Sort active UAVs by (number of connected users, then current load) ascending
+                active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
 
-        #     for uav in uavs_to_deactivate:
-        #         uav.is_active = False
+                # Deactivate excess UAVs
+                excess = len(active_uavs) - PARAMS["V_max"]
+                uavs_to_deactivate = active_uavs[:excess]
+
+                for uav in uavs_to_deactivate:
+                    uav.is_active = False
 
         return (end_time - start_time)
 
@@ -214,7 +176,7 @@ class PSO:
         self.haps = haps
         self.num_uavs = len(uavs)
         self.num_vnfs = 10
-        self.max_iter = 300
+        self.max_iter = 100
         self.swarm_size = 50
         self.requests = requests
 
@@ -337,7 +299,7 @@ class PSO:
             mean_particle_std = np.mean(particle_std)
             fitness_change = float(abs(prev_best_score - gbest_score))
 
-            if fitness_change < 1e-4:
+            if fitness_change < 1e-3:
                 stagnation_counter += 1
             else:
                 stagnation_counter = 0
