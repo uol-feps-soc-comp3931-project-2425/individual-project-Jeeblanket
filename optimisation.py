@@ -214,21 +214,26 @@ class PSO:
         self.haps = haps
         self.num_uavs = len(uavs)
         self.num_vnfs = 10
-        self.max_iter = 100
-        self.swarm_size = 30
+        self.max_iter = 300
+        self.swarm_size = 50
         self.requests = requests
+
+        # Parameters for better control
+        self.logging_interval = 5
+        self.stagnation_threshold = 25
+        self.min_inertia = 0.4
+        self.mutation_interval = 15
 
     def initialise_swarm(self):
         particles = []
         velocities = []
         for _ in range(self.swarm_size):
-            # Random binary matrix for VNF activation (UAVs x VNFs)
             particle = np.random.randint(0, 2, (self.num_uavs, self.num_vnfs))
             velocity = np.random.uniform(-1, 1, (self.num_uavs, self.num_vnfs))
             particles.append(particle)
             velocities.append(velocity)
         return particles, velocities
-    
+
     def bandwidth_vectorized(self, dist, link_type):
         if link_type == 'user_uav':
             bw_max = PARAMS["BW_max_user_uav"]
@@ -244,57 +249,38 @@ class PSO:
         return bw
 
     def fitness(self, particle):
-        # Stack UAV positions (num_uavs, 3)
         uav_positions = np.array([uav.position for uav in self.uavs])
-        
-        # Stack UserRequest positions (num_requests, 3)
         user_positions = np.array([req.user_position for req in self.requests])
-        
         num_requests = len(self.requests)
         hap_position = np.array(self.haps[0].position)
 
-        # Compute all distances at once
         diff_user_uav = user_positions[:, np.newaxis, :] - uav_positions[np.newaxis, :, :]
-        dists_user_uav = np.linalg.norm(diff_user_uav, axis=2)  # shape (num_requests, num_uavs)
+        dists_user_uav = np.linalg.norm(diff_user_uav, axis=2)
 
-        dists_uav_hap = np.linalg.norm(uav_positions - hap_position, axis=1)  # (num_uavs,)
+        dists_uav_hap = np.linalg.norm(uav_positions - hap_position, axis=1)
         dists_uav_hap = np.broadcast_to(dists_uav_hap, (num_requests, self.num_uavs))
 
-        # Compute bandwidths
         bw_user_uav = self.bandwidth_vectorized(dists_user_uav, link_type='user_uav')
         bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, link_type='uav_hap')
 
-        # Build VNF activation masks
-        particle_vnfs = particle  # (num_uavs, num_vnfs)
+        particle_vnfs = particle
 
         vnfs_needed = np.zeros((num_requests, self.num_vnfs))
         for idx, req in enumerate(self.requests):
             vnfs_needed[idx, req.requested_vnfs] = 1
 
-        # For each request and UAV: check if UAV can serve the user's VNFs
-        vnfs_coverage = np.all((vnfs_needed[:, np.newaxis, :] <= particle_vnfs[np.newaxis, :, :]), axis=2)  # (num_requests, num_uavs)
-
-        # Check if UAV is in communication range and has nonzero bandwidth
+        vnfs_coverage = np.all((vnfs_needed[:, np.newaxis, :] <= particle_vnfs[np.newaxis, :, :]), axis=2)
         valid_links = (dists_user_uav <= PARAMS["R_v"]) & (dists_uav_hap <= PARAMS["R_h"]) & (bw_user_uav > 0) & (bw_uav_hap > 0)
+        valid = vnfs_coverage & valid_links
 
-        # Final validity mask
-        valid = vnfs_coverage & valid_links  # (num_requests, num_uavs)
-
-        # Compute latency matrix
         rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dists_user_uav / bw_user_uav)) + \
-            (PARAMS["latency_coeffs"]["alpha2"] * (dists_uav_hap / bw_uav_hap))  # (num_requests, num_uavs)
+              (PARAMS["latency_coeffs"]["alpha2"] * (dists_uav_hap / bw_uav_hap))
 
-        # Set latency to large value where invalid
         rcl[~valid] = np.inf
-
-        # Best latency for each request (choose best UAV)
         best_latencies = np.min(rcl, axis=1)
-
-        # If no UAV can serve request, penalize
         best_latencies[np.isinf(best_latencies)] = 1e9
 
-        total_latency = np.sum(best_latencies)
-        return total_latency
+        return np.sum(best_latencies)
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
@@ -303,7 +289,8 @@ class PSO:
         print("PSO optimiser has begun")
         start_time = time.time()
 
-        # get old activation states (shape: num_uavs x num_vnfs)
+        stagnation_counter = 0
+
         old_activations = np.zeros((self.num_uavs, self.num_vnfs))
         for idx, uav in enumerate(self.uavs):
             for vnf in uav.active_vnfs:
@@ -311,26 +298,26 @@ class PSO:
 
         particles, velocities = self.initialise_swarm()
 
-        # Personal best
         pbest = particles.copy()
         pbest_scores = [self.fitness(p) for p in pbest]
 
-        # Global best
         gbest_idx = np.argmin(pbest_scores)
         gbest = pbest[gbest_idx]
         gbest_score = pbest_scores[gbest_idx]
+        prev_best_score = gbest_score
 
-        w = 0.9  # inertia
-        c1 = 1.5 # personal best weight
-        c2 = 1.3 # global best weight
-    
-        # PSO main loop
+        w = 0.9
+        c1 = 1.5
+        c2 = 1.3
+
         for iteration in range(self.max_iter):
+            w = max(0.9 - (0.5 * iteration / self.max_iter), self.min_inertia)
+
             for i in range(self.swarm_size):
                 r1, r2 = np.random.rand(self.num_uavs, self.num_vnfs), np.random.rand(self.num_uavs, self.num_vnfs)
                 velocities[i] = (w * velocities[i] +
-                             c1 * r1 * (pbest[i] - particles[i]) +
-                             c2 * r2 * (gbest - particles[i]))
+                                 c1 * r1 * (pbest[i] - particles[i]) +
+                                 c2 * r2 * (gbest - particles[i]))
 
                 prob = self.sigmoid(velocities[i])
                 random_matrix = np.random.rand(self.num_uavs, self.num_vnfs)
@@ -342,19 +329,40 @@ class PSO:
                     pbest[i] = particles[i].copy()
                     pbest_scores[i] = score
                     if score < gbest_score:
+                        prev_best_score = gbest_score
                         gbest = particles[i].copy()
                         gbest_score = score
-                
-                w = 0.9 - 0.5 * (iteration / self.max_iter)
 
-            print(f"Iteration {iteration}: Best latency = {gbest_score}")
+            particle_std = np.std(np.stack(particles), axis=0)
+            mean_particle_std = np.mean(particle_std)
+            fitness_change = float(abs(prev_best_score - gbest_score))
+
+            if fitness_change < 1e-4:
+                stagnation_counter += 1
+            else:
+                stagnation_counter = 0
+
+            if stagnation_counter >= self.stagnation_threshold:
+                print(f"Early stopping at iteration {iteration} due to stagnation.")
+                break
+
+            if iteration % self.mutation_interval == 0 and iteration != 0:
+                num_mutations = int(0.1 * self.swarm_size)
+                mutation_indices = np.random.choice(self.swarm_size, num_mutations, replace=False)
+                for idx in mutation_indices:
+                    flip_rate = 0.1 if mean_particle_std < 0.05 else 0.05
+                    flip = np.random.rand(self.num_uavs, self.num_vnfs) < flip_rate
+                    particles[idx] = np.logical_xor(particles[idx], flip).astype(int)
+
+            if iteration % self.logging_interval == 0:
+                print(f"Iteration {iteration}: Swarm diversity = {mean_particle_std:.6f}")
+                print(f"Iteration {iteration}: Fitness change = {fitness_change:.8f}")
+                print(f"Iteration {iteration}: Best latency = {gbest_score}")
 
         end_time = time.time()
 
-        # Now finalize UAV states
+        # Finalize UAVs
         new_activations = np.zeros((self.num_uavs, self.num_vnfs))
-
-        # Build VNF demand once
         vnf_demand = np.zeros(self.num_vnfs)
         for request in self.requests:
             for vnf_id in request.requested_vnfs:
@@ -363,8 +371,6 @@ class PSO:
         for idx, uav in enumerate(self.uavs):
             if not uav.is_active:
                 continue
-
-            # Find VNFs needed by users
             needed_vnfs = set()
             for user in uav.connected_users:
                 needed_vnfs.update(user.requested_vnfs)
@@ -378,38 +384,31 @@ class PSO:
             for vnf_id in valid_activated:
                 new_activations[idx, vnf_id] = 1
 
-        # Constraint: A_max
         delta = new_activations - old_activations
         new_activations_count = np.sum(delta == 1)
 
         if new_activations_count > PARAMS["A_max"]:
-            print(f" New activations ({new_activations_count}) exceed A_max ({PARAMS['A_max']}) - applying limit.")
+            print(f"New activations ({new_activations_count}) exceed A_max ({PARAMS['A_max']}) - applying limit.")
 
             new_indices = np.argwhere(delta == 1)
-
-            # prioritize new activations based on VNF demand
             new_indices_sorted = sorted(new_indices, key=lambda x: vnf_demand[x[1]], reverse=True)
 
             allowed = new_indices_sorted[:PARAMS["A_max"]]
-            delta[:] = 0  # Reset all
+            delta[:] = 0
             for idx in allowed:
                 delta[idx[0], idx[1]] = 1
 
             new_activations = old_activations + delta
-            new_activations = np.clip(new_activations, 0, 1)  # Keep 0/1
+            new_activations = np.clip(new_activations, 0, 1)
 
         for idx, uav in enumerate(self.uavs):
             if not uav.is_active:
                 continue
 
-            # find VNFs that PSO wants active
-            vnf_indices = np.where(new_activations[idx] == 1)[0]
-
-            # clear old VNFs first (optional but recommended)
             uav.active_vnfs.clear()
-
+            vnf_indices = np.where(new_activations[idx] == 1)[0]
             for vnf_id in vnf_indices:
                 uav.activate_vnf(vnf_id)
 
-        print(time.time() - start_time)
+        print(f"Total optimization time: {end_time - start_time:.2f} seconds")
         return end_time - start_time
