@@ -274,7 +274,7 @@ class PSO:
 
         w = 0.9  # inertia
         c1 = 1.5 # personal best weight
-        c2 = 2.0 # global best weight
+        c2 = 1.3 # global best weight
     
         # PSO main loop
         for iteration in range(self.max_iter):
@@ -296,8 +296,8 @@ class PSO:
                     if score < gbest_score:
                         gbest = particles[i].copy()
                         gbest_score = score
-            if iteration % 10 == 0:
-                w -= 0.05
+                
+                w = 0.9 - 0.5 * (iteration / self.max_iter)
 
             print(f"Iteration {iteration}: Best latency = {gbest_score}")
 
