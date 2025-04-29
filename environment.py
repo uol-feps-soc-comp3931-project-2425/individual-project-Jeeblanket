@@ -15,12 +15,10 @@ class SimulationEnvironment:
         self.haps = []  # set of all HAPs
         self.user_requests = [] # set of all generated requests
         self.pending_requests = deque() # queue for attending to requests
-        self.time = 0
         self.lambda_arrival_rate = PARAMS["R"]  # requests per unit time
         self.step = PARAMS["deltaT"]    # timestep between reconfiguration
         self.no_uavs = PARAMS["U"]  # number of UAVs in the system
         self.latency_records = []   # record for analysis
-        self.max_vnfs = PARAMS["C"]   # max number of vnfs allowed to be active on a UAV
 
         self.initialize_network()
 
@@ -60,7 +58,7 @@ class SimulationEnvironment:
 
         for uav in self.uavs:
             uav.connected_users.clear()
-            uav.current_load = 0  # Reset load to reassign properly
+            uav.current_load = 0  # reset load to reassign properly
 
         reassigned_requests = []
 
@@ -77,7 +75,7 @@ class SimulationEnvironment:
                 if not uav.can_serve_user(request.user_position):
                     continue
 
-                # Enforce VNF availability (constraint 2.12)
+                # enforce VNF availability (constraint 2.12)
                 vnfs_needed = set(request.requested_vnfs)
                 if not vnfs_needed.issubset(uav.active_vnfs):
                     continue
@@ -114,14 +112,14 @@ class SimulationEnvironment:
 
         if best_uav:
             best_uav.connected_users.append(request)
-            best_uav.current_load += request.demand  # Increase load
+            best_uav.current_load += request.demand  # increase load
             return best_uav
         else:
             return None
 
 
     def request_collection(self, request, uav):
-        hap = self.haps[0]  # Assume only one HAP for now
+        hap = self.haps[0]  # assume only one HAP for now
         dist_user_uav = distance(uav.position, request.user_position)
         dist_uav_hap = distance(uav.position, hap.position)
         bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
@@ -161,7 +159,7 @@ class SimulationEnvironment:
         processed_latencies = []
         collected_requests = []
 
-        # First loop: assign users to UAVs and gather info
+        # assign users to UAVs and gather info
         while self.pending_requests:
             print(str(len(self.pending_requests)) + " pending requests left")
             request = self.pending_requests.popleft()  # FIFO processing
@@ -169,7 +167,7 @@ class SimulationEnvironment:
             assigned_uav = self.assign_user_to_uav(request)
             if not assigned_uav:
                 print(f"Request {request.request_id} could not be assigned to UAV initially.")
-                # Mark this user as dropped, add to final results with penalty
+                # mark this user as dropped, add to final results with penalty
                 processed_latencies.append({
                     'request_id': request.request_id,
                     'rcl': 0,
@@ -190,18 +188,18 @@ class SimulationEnvironment:
                 'rcl': rcl
             })
 
-        # After all users are collected, now call decision_making() ONCE
+        # after all users are collected, now call decision_making() ONCE
         dml = self.decision_making()
         self.reassign_users_after_optimization()
 
-        # Now process placement, preparation, transmission for each user
+        # now process placement, preparation, transmission for each user
         for entry in collected_requests:
             request = entry['request']
             assigned_uav = entry['assigned_uav']
             rcl = entry['rcl']
 
             if assigned_uav not in self.uavs or not assigned_uav.is_active:
-                # UAV became inactive after reoptimization
+                # UAV became inactive after reoptimisation
                 print(f"Warning: UAV {assigned_uav.uav_id} is inactive after optimization, dropping request {request.request_id}.")
                 processed_latencies.append({
                     'request_id': request.request_id,

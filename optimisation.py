@@ -105,7 +105,7 @@ class GWO:
 
             wolves = new_wolves
 
-            # Add exploration kick every mutation_interval
+            # add exploration kick every mutation_interval
             if iteration % self.mutation_interval == 0 and iteration != 0:
                 wolves = [(pos[0] + np.random.uniform(-self.noise_strength, self.noise_strength),
                            pos[1] + np.random.uniform(-self.noise_strength, self.noise_strength),
@@ -126,15 +126,13 @@ class GWO:
 
             prev_best_latency = best_latency_now
 
-            print(f"Iteration {iteration}: Best latency = {best_latency_now}")
-
             if stagnation_counter >= self.stagnation_threshold:
                 print(f"Early stopping at iteration {iteration} due to stagnation.")
                 break
         
         end_time = time.time()
 
-        # Move UAVs to final positions
+        # move UAVs to final positions
         for i, uav in enumerate(self.uavs):
             target_pos = wolves[i]
             move_distance = distance(uav.position, target_pos)
@@ -147,7 +145,7 @@ class GWO:
             else:
                 uav.move_to(target_pos)
 
-            # Check if UAV can reach HAP
+            # check if UAV can reach HAP
             # enforces constraint 2.16
             reachable = False
             for hap in self.haps:
@@ -156,14 +154,14 @@ class GWO:
                     break
             uav.is_active = reachable
 
-            # Enforce constraint 2.18 + 2.19: Limit active UAVs
+            # enforce constraint 2.18 + 2.19: Limit active UAVs
             active_uavs = [uav for uav in self.uavs if uav.is_active]
 
             if len(active_uavs) > PARAMS["V_max"]:
-                # Sort active UAVs by (number of connected users, then current load) ascending
+                # sort active UAVs by (number of connected users, then current load) ascending
                 active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
 
-                # Deactivate excess UAVs
+                # deactivate excess UAVs
                 # enforces constraint 2.17
                 excess = len(active_uavs) - PARAMS["V_max"]
                 uavs_to_deactivate = active_uavs[:excess]
@@ -183,8 +181,7 @@ class PSO:
         self.swarm_size = 50
         self.requests = requests
 
-        # Parameters for better control
-        self.logging_interval = 5
+        # parameters for better control
         self.stagnation_threshold = 25
         self.min_inertia = 0.4
         self.mutation_interval = 15
@@ -320,11 +317,6 @@ class PSO:
                     flip = np.random.rand(self.num_uavs, self.num_vnfs) < flip_rate
                     particles[idx] = np.logical_xor(particles[idx], flip).astype(int)
 
-            if iteration % self.logging_interval == 0:
-                print(f"Iteration {iteration}: Swarm diversity = {mean_particle_std:.6f}")
-                print(f"Iteration {iteration}: Fitness change = {fitness_change:.8f}")
-                print(f"Iteration {iteration}: Best latency = {gbest_score}")
-
         end_time = time.time()
 
         # Finalize UAVs
@@ -378,5 +370,4 @@ class PSO:
             for vnf_id in vnf_indices:
                 uav.activate_vnf(vnf_id)
 
-        print(f"Total optimization time: {end_time - start_time:.2f} seconds")
         return end_time - start_time

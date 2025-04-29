@@ -27,7 +27,7 @@ class UserRequest:
     def __init__(self, request_id, user_position, requested_vnfs, demand=5):
         self.request_id = request_id
         self.user_position = user_position  # (x, y, z) on ground (assume z=0)
-        self.requested_vnfs = requested_vnfs  # List of VNFs
+        self.requested_vnfs = requested_vnfs  # list of VNFs
         self.demand = demand
 
 class UAV:
@@ -78,18 +78,18 @@ def distance(pos1, pos2):
 
 def bandwidth(distance, link_type):
     if link_type == 'user_uav':
-        BW_max = PARAMS["BW_max_user_uav"]   # Mbps for User <-> UAV
+        BW_max = PARAMS["BW_max_user_uav"]   # mbps for User <-> UAV
         R_max = PARAMS["R_v"] # meters
     elif link_type == 'uav_hap':
-        BW_max = PARAMS["BW_max_uav_hap"]  # Mbps for UAV <-> HAP
+        BW_max = PARAMS["BW_max_uav_hap"]  # mbps for UAV <-> HAP
         R_max = PARAMS["R_h"] # meters
     else:
         raise ValueError(f"Unknown link type: {link_type}")
 
-    # If distance is greater than max range, bandwidth is effectively 0
+    # if distance is greater than max range, bandwidth is effectively 0
     if distance > R_max:
         return 1e-6  # or 0, but 1e-6 avoids division by zero issues later
 
-    # Apply formula
+    # apply formula
     bandwidth = BW_max * (1 - (distance / R_max))
     return bandwidth
