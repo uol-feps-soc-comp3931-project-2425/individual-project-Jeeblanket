@@ -139,26 +139,42 @@ class SimulationEnvironment:
 
     def process_requests(self):
         processed_latencies = []
-    
+        collected_requests = []
+
+        # First loop: assign users to UAVs and gather info
         while self.pending_requests:
             print(str(len(self.pending_requests)) + " pending requests left")
             request = self.pending_requests.popleft()  # FIFO processing
 
-
             assigned_uav = self.assign_user_to_uav(request)
             if not assigned_uav:
-                # for debugging only, in reality if skipped need to gather next request
-                # need to be careful not to enter an infinite loop if all users cannot be assigned
                 print("request " + str(request.request_id) + " could not be assigned to uav") 
                 continue
+
             rcl = self.request_collection(request, assigned_uav)
-            dml = self.decision_making()
+
+            # Store information for later
+            collected_requests.append({
+                'request': request,
+             'assigned_uav': assigned_uav,
+             'rcl': rcl
+            })
+
+        # After all users are collected, now call decision_making() ONCE
+        dml = self.decision_making()
+
+        # Now process placement, preparation, transmission for each user
+        for entry in collected_requests:
+            request = entry['request']
+            assigned_uav = entry['assigned_uav']
+            rcl = entry['rcl']
+
             pl = self.placement(assigned_uav)
             prep = self.preparation(assigned_uav)
             tx = self.transmission(request, assigned_uav)
-        
+
             total_latency = rcl + dml + pl + prep + tx
-        
+
             processed_latencies.append({
                 'request_id': request.request_id,
                 'rcl': rcl,
