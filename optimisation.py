@@ -210,42 +210,72 @@ class PSO:
             particles.append(particle)
             velocities.append(velocity)
         return particles, velocities
+    
+    def bandwidth_vectorized(self, dist, link_type):
+        if link_type == 'user_uav':
+            bw_max = PARAMS["BW_max_user_uav"]
+            r_max = PARAMS["R_v"]
+        elif link_type == 'uav_hap':
+            bw_max = PARAMS["BW_max_uav_hap"]
+            r_max = PARAMS["R_h"]
+        else:
+            raise ValueError("Unknown link type")
+
+        bw = bw_max * (1 - (dist / r_max))
+        bw[dist > r_max] = 0
+        return bw
 
     def fitness(self, particle):
-        # Evaluate latency for this particle (VNF activation pattern)
-        total_latency = 0
+        # Stack UAV positions (num_uavs, 3)
+        uav_positions = np.array([uav.position for uav in self.uavs])
+        
+        # Stack UserRequest positions (num_requests, 3)
+        user_positions = np.array([req.user_position for req in self.requests])
+        
+        num_requests = len(self.requests)
+        hap_position = np.array(self.haps[0].position)
 
-        hap = self.haps[0]
+        # Compute all distances at once
+        diff_user_uav = user_positions[:, np.newaxis, :] - uav_positions[np.newaxis, :, :]
+        dists_user_uav = np.linalg.norm(diff_user_uav, axis=2)  # shape (num_requests, num_uavs)
 
-        for request in self.requests:
-            best_latency = float('inf')
-            for uav_idx, uav in enumerate(self.uavs):
-                # UAV must have all VNFs requested
-                vnfs_needed = set(request.requested_vnfs)
-                vnfs_active = set(np.where(particle[uav_idx] == 1)[0])
-                if not vnfs_needed.issubset(vnfs_active):
-                    continue  # UAV cannot serve this request
+        dists_uav_hap = np.linalg.norm(uav_positions - hap_position, axis=1)  # (num_uavs,)
+        dists_uav_hap = np.broadcast_to(dists_uav_hap, (num_requests, self.num_uavs))
 
-                dist_user_uav = distance(uav.position, request.user_position)
-                dist_uav_hap = distance(uav.position, hap.position)
+        # Compute bandwidths
+        bw_user_uav = self.bandwidth_vectorized(dists_user_uav, link_type='user_uav')
+        bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, link_type='uav_hap')
 
-                if dist_user_uav > PARAMS["R_v"] or dist_uav_hap > PARAMS["R_h"]:
-                    continue  # Out of communication range
+        # Build VNF activation masks
+        particle_vnfs = particle  # (num_uavs, num_vnfs)
 
-                bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
-                bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
+        vnfs_needed = np.zeros((num_requests, self.num_vnfs))
+        for idx, req in enumerate(self.requests):
+            vnfs_needed[idx, req.requested_vnfs] = 1
 
-                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dist_user_uav / bw_user_uav)) + \
-                      (PARAMS["latency_coeffs"]["alpha2"] * (dist_uav_hap / bw_uav_hap))
+        # For each request and UAV: check if UAV can serve the user's VNFs
+        vnfs_coverage = np.all((vnfs_needed[:, np.newaxis, :] <= particle_vnfs[np.newaxis, :, :]), axis=2)  # (num_requests, num_uavs)
 
-                if rcl < best_latency:
-                    best_latency = rcl
+        # Check if UAV is in communication range and has nonzero bandwidth
+        valid_links = (dists_user_uav <= PARAMS["R_v"]) & (dists_uav_hap <= PARAMS["R_h"]) & (bw_user_uav > 0) & (bw_uav_hap > 0)
 
-            if best_latency == float('inf'):
-                best_latency = 1e9  # Big penalty if request cannot be served
+        # Final validity mask
+        valid = vnfs_coverage & valid_links  # (num_requests, num_uavs)
 
-            total_latency += best_latency
+        # Compute latency matrix
+        rcl = (PARAMS["latency_coeffs"]["alpha1"] * (dists_user_uav / bw_user_uav)) + \
+            (PARAMS["latency_coeffs"]["alpha2"] * (dists_uav_hap / bw_uav_hap))  # (num_requests, num_uavs)
 
+        # Set latency to large value where invalid
+        rcl[~valid] = np.inf
+
+        # Best latency for each request (choose best UAV)
+        best_latencies = np.min(rcl, axis=1)
+
+        # If no UAV can serve request, penalize
+        best_latencies[np.isinf(best_latencies)] = 1e9
+
+        total_latency = np.sum(best_latencies)
         return total_latency
 
     def sigmoid(self, x):
