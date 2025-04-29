@@ -168,6 +168,15 @@ class SimulationEnvironment:
             if not assigned_uav:
                 print(f"Request {request.request_id} could not be assigned to UAV initially.")
                 # mark this user as dropped, add to final results with penalty
+                
+                simulation_info = {
+                    "U": PARAMS["U"],
+                    "R": PARAMS["R"],
+                    "C": PARAMS["C"],
+                    "S_max": PARAMS["S_max"],
+                    "V_max": PARAMS["V_max"]
+                }
+
                 processed_latencies.append({
                     'request_id': request.request_id,
                     'rcl': 0,
@@ -176,7 +185,8 @@ class SimulationEnvironment:
                     'prep': 0,
                     'tx': 0,
                     'total': 1e9,
-                    'total_no_placement': 1e9
+                    'total_no_placement': 1e9,
+                    **simulation_info
                 })
                 continue
 
