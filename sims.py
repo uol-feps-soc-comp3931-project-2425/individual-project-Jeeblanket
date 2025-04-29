@@ -14,7 +14,7 @@ def run_experiments():
     V_max_values = [10, 20, 30, 40]          # max active UAVs
 
     # Number of times to repeat each setting (for averaging)
-    num_repeats = 1
+    num_repeats = 10
 
     # Create all combinations
     all_combinations = list(itertools.product(U_values, R_values, C_values, S_max_values, V_max_values))
@@ -70,8 +70,8 @@ def run_experiments():
 
     # Save to CSV
     df = pd.DataFrame(results)
-    df.to_csv('experiment_results.csv', index=False)
-    print("\n✅ All experiments completed! Results saved to 'experiment_results.csv'.")
+    df.to_csv('experiment_results_final.csv', index=False)
+    print("\n All experiments completed! Results saved to 'experiment_results.csv'.")
 
 if __name__ == "__main__":
     run_experiments()

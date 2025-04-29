@@ -34,6 +34,7 @@ class SimulationEnvironment:
     def generate_user_requests(self):
         num_requests = np.random.poisson(self.lambda_arrival_rate)
         print("Number of requests: " + str(num_requests))
+        
         for i in range(num_requests):
             position = (random.uniform(-25000, 25000), random.uniform(-25000, 25000), 0)
             print(position)
@@ -42,6 +43,7 @@ class SimulationEnvironment:
 
             self.user_requests.append(new_request)
             self.pending_requests.append(new_request)
+        return num_requests
 
     def optimise_network(self):
         # calls GWO
@@ -247,6 +249,7 @@ class SimulationEnvironment:
     def run_simulation(self):
         print("--- Simulation Begin ---")
         # need to repeat this for however many time steps will simulate
-        self.generate_user_requests()
-        self.process_requests()
+        num_requests = self.generate_user_requests()
+        if num_requests > 0:
+            self.process_requests()
         

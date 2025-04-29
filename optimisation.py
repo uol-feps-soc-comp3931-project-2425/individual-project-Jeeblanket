@@ -32,6 +32,12 @@ class GWO:
         hap_pos = np.array(self.haps[0].position)
         user_positions = np.array([req.user_position for req in self.requests])
 
+        uav_positions = np.array(uav_positions)
+        if uav_positions.ndim == 1:
+            uav_positions = uav_positions[np.newaxis, :]  # Force it to (1, 3)
+        elif uav_positions.ndim == 0:
+            raise ValueError("uav_positions is empty or badly formatted!")
+
         diff_user_uav = user_positions[:, np.newaxis, :] - np.array(uav_positions)[np.newaxis, :, :]
         dists_user_uav = np.linalg.norm(diff_user_uav, axis=2)
 
@@ -80,7 +86,7 @@ class GWO:
         start_time = time.time()
 
         wolves = [uav.position for uav in self.uavs]
-        fitness_scores = [self.fitness([wolf]) for wolf in wolves]
+        fitness_scores = [self.fitness(np.array(wolf)[np.newaxis, :]) for wolf in wolves]
 
         sorted_pairs = sorted(zip(fitness_scores, wolves))
         fitness_scores_sorted, sorted_wolves = zip(*sorted_pairs)
@@ -111,7 +117,7 @@ class GWO:
                            pos[1] + np.random.uniform(-self.noise_strength, self.noise_strength),
                            pos[2] + np.random.uniform(-self.noise_strength, self.noise_strength)) for pos in wolves]
 
-            fitness_scores = [self.fitness([wolf]) for wolf in wolves]
+            fitness_scores = [self.fitness(np.array(wolf)[np.newaxis, :]) for wolf in wolves]
             sorted_pairs = sorted(zip(fitness_scores, wolves))
             fitness_scores_sorted, sorted_wolves = zip(*sorted_pairs)
             alpha, beta, delta = sorted_wolves[:3]
