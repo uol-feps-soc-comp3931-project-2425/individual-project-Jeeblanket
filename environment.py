@@ -174,6 +174,7 @@ class SimulationEnvironment:
             tx = self.transmission(request, assigned_uav)
 
             total_latency = rcl + dml + pl + prep + tx
+            total_no_placement = rcl + dml + prep + tx
 
             processed_latencies.append({
                 'request_id': request.request_id,
@@ -182,7 +183,8 @@ class SimulationEnvironment:
                 'pl': pl,
                 'prep': prep,
                 'tx': tx,
-                'total': total_latency
+                'total': total_latency,
+                'total_no_placement': total_no_placement
             })
 
         self.latency_records.extend(processed_latencies)
