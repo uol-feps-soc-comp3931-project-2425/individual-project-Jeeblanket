@@ -11,53 +11,71 @@ class GWO:
         self.max_iter = 100
         self.requests = requests
 
+    def bandwidth_vectorized(self, dists, link_type):
+        if link_type == 'user_uav':
+            bw_max = PARAMS["BW_max_user_uav"]
+            r_max = PARAMS["R_v"]
+        elif link_type == 'uav_hap':
+            bw_max = PARAMS["BW_max_uav_hap"]
+            r_max = PARAMS["R_h"]
+        else:
+            raise ValueError("Unknown link type")
+
+        bw = bw_max * (1 - (dists / r_max))
+        bw[dists > r_max] = 0
+        return bw
+
     def fitness(self, uav_positions):
-        total_latency = 0
         hap = self.haps[0]
+        hap_pos = np.array(hap.position)
 
-        for request in self.requests:
-            best_latency = float('inf')
-            assigned = False
+        num_requests = len(self.requests)
+        num_uavs = len(uav_positions)
 
-            for pos in uav_positions:
-                # Calculate distance
-                dist_user_uav = distance(pos, request.user_position)
-                dist_uav_hap = distance(pos, hap.position)
+        # Stack request positions
+        user_positions = np.array([req.user_position for req in self.requests])
 
-                # Check if within range
-                if dist_user_uav > PARAMS["R_v"] or dist_uav_hap > PARAMS["R_h"]:
-                    total_latency+= 1e6 # Penalty if UAV is out of HAP range or user out of uav range
+        # UAV positions array
+        uav_positions = np.array(uav_positions)
 
-                # Calculate bandwidth
-                bw_user_uav = bandwidth(dist_user_uav, link_type='user_uav')
-                bw_uav_hap = bandwidth(dist_uav_hap, link_type='uav_hap')
+        # Compute distances: (num_requests, num_uavs)
+        diff_user_uav = user_positions[:, np.newaxis, :] - uav_positions[np.newaxis, :, :]
+        dists_user_uav = np.linalg.norm(diff_user_uav, axis=2)
 
-                if bw_user_uav <= 0 or bw_uav_hap <= 0:
-                    total_latency+= 1e6  # No usable link, penalty
+        dists_uav_hap = np.linalg.norm(uav_positions - hap_pos, axis=1)  # (num_uavs,)
+        dists_uav_hap = np.broadcast_to(dists_uav_hap, (num_requests, num_uavs))
 
-                # Calculate latencies
-                rcl = (PARAMS["latency_coeffs"]["alpha1"] * (PARAMS["S"] / bw_user_uav)) + \
-                      (PARAMS["latency_coeffs"]["alpha2"] * (PARAMS["S"] / bw_uav_hap))
-            
-                pl = PARAMS["latency_coeffs"]["gamma1"] * PARAMS["S_max"] + \
-                     PARAMS["latency_coeffs"]["gamma2"] * (PARAMS["S"] / bw_uav_hap)
+        # Compute bandwidths
+        bw_user_uav = self.bandwidth_vectorized(dists_user_uav, link_type='user_uav')
+        bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, link_type='uav_hap')
 
-                prep = (PARAMS["latency_coeffs"]["beta1"] * (PARAMS["S"] / bw_uav_hap)) + PARAMS["latency_coeffs"]["beta2"]
+        # Validity mask: links must be within range and positive bandwidth
+        valid_links = (dists_user_uav <= PARAMS["R_v"]) & (dists_uav_hap <= PARAMS["R_h"]) & (bw_user_uav > 0) & (bw_uav_hap > 0)
 
-                tx = PARAMS["latency_coeffs"]["delta1"] * (PARAMS["S"] / bw_user_uav)
+        # Compute latency matrix (same as before)
+        rcl = (PARAMS["latency_coeffs"]["alpha1"] * (PARAMS["S"] / bw_user_uav)) + \
+            (PARAMS["latency_coeffs"]["alpha2"] * (PARAMS["S"] / bw_uav_hap))
 
-                latency = rcl + pl + prep + tx
+        pl = PARAMS["latency_coeffs"]["gamma1"] * PARAMS["S_max"] + \
+            PARAMS["latency_coeffs"]["gamma2"] * (PARAMS["S"] / bw_uav_hap)
 
-                if latency < best_latency:
-                    best_latency = latency
-                    assigned = True
+        prep = (PARAMS["latency_coeffs"]["beta1"] * (PARAMS["S"] / bw_uav_hap)) + PARAMS["latency_coeffs"]["beta2"]
 
-            if not assigned:
-                # No UAV could serve this request
-                total_latency += 1e9
-            else:
-                total_latency += best_latency
+        tx = PARAMS["latency_coeffs"]["delta1"] * (PARAMS["S"] / bw_user_uav)
 
+        latency_matrix = rcl + pl + prep + tx  # shape (num_requests, num_uavs)
+
+        # Mask invalid links with large latency
+        latency_matrix[~valid_links] = np.inf
+
+        # Pick best UAV per user
+        best_latencies = np.min(latency_matrix, axis=1)
+
+        # Penalize unassignable users
+        best_latencies[np.isinf(best_latencies)] = 1e9
+
+        # Total latency is sum
+        total_latency = np.sum(best_latencies)
         return total_latency
     
     def update_position(self, current_pos, leader_pos, a):
