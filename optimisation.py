@@ -138,6 +138,7 @@ class GWO:
         for i, uav in enumerate(self.uavs):
             target_pos = wolves[i]
             move_distance = distance(uav.position, target_pos)
+            # enforces constraint 2.20
             if move_distance > uav.max_move:
                 direction = np.array(target_pos) - np.array(uav.position)
                 direction = direction * (uav.max_move / move_distance)
@@ -147,6 +148,7 @@ class GWO:
                 uav.move_to(target_pos)
 
             # Check if UAV can reach HAP
+            # enforces constraint 2.16
             reachable = False
             for hap in self.haps:
                 if distance(uav.position, hap.position) <= hap.communication_range:
@@ -162,6 +164,7 @@ class GWO:
                 active_uavs.sort(key=lambda uav: (len(uav.connected_users), uav.current_load))
 
                 # Deactivate excess UAVs
+                # enforces constraint 2.17
                 excess = len(active_uavs) - PARAMS["V_max"]
                 uavs_to_deactivate = active_uavs[:excess]
 
@@ -281,6 +284,7 @@ class PSO:
                                  c1 * r1 * (pbest[i] - particles[i]) +
                                  c2 * r2 * (gbest - particles[i]))
 
+                # enforces constraint 2.21
                 prob = self.sigmoid(velocities[i])
                 random_matrix = np.random.rand(self.num_uavs, self.num_vnfs)
                 particles[i] = (random_matrix < prob).astype(int)
@@ -330,6 +334,7 @@ class PSO:
             for vnf_id in request.requested_vnfs:
                 vnf_demand[vnf_id] += 1
 
+        # enforces constraint 2.22
         for idx, uav in enumerate(self.uavs):
             if not uav.is_active:
                 continue
