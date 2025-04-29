@@ -340,6 +340,7 @@ class PSO:
             activated = np.where(gbest[idx] == 1)[0]
             valid_activated = [vnf for vnf in activated if vnf in needed_vnfs]
 
+            # enforcing constraint 2.13
             if len(valid_activated) > uav.max_vnfs:
                 valid_activated = random.sample(valid_activated, uav.max_vnfs)
 
