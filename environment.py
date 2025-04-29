@@ -55,6 +55,50 @@ class SimulationEnvironment:
         pso_optimiser = PSO(self.uavs, self.haps, self.user_requests)
         return pso_optimiser.optimise()
 
+    def reassign_users_after_optimization(self):
+        print("Reassigning users after optimization...")
+
+        for uav in self.uavs:
+            uav.connected_users.clear()
+            uav.current_load = 0  # Reset load to reassign properly
+
+        reassigned_requests = []
+
+        for request in self.user_requests:
+            best_uav = None
+            best_distance = float('inf')
+
+            # enforcing constraint 2.15
+            for uav in self.uavs:
+                if not uav.is_active:
+                    continue
+
+                 # enforces assignment range constraint
+                if not uav.can_serve_user(request.user_position):
+                    continue
+
+                # Enforce VNF availability (constraint 2.12)
+                vnfs_needed = set(request.requested_vnfs)
+                if not vnfs_needed.issubset(uav.active_vnfs):
+                    continue
+
+                # meeting constraint 2.14
+                if uav.current_load + request.demand > uav.max_capacity:
+                    continue
+
+                dist = distance(uav.position, request.user_position)
+                if dist < best_distance:
+                    best_distance = dist
+                    best_uav = uav
+
+            if best_uav:
+                best_uav.connected_users.append(request)
+                best_uav.current_load += request.demand
+                reassigned_requests.append(request.request_id)
+            else:
+                print(f"Request {request.request_id} could not be reassigned to any UAV after optimisation")
+
+        print(f"Successfully reassigned {len(reassigned_requests)} users.")
 
     def assign_user_to_uav(self, request):
         # satisfies constraint defined in 2.11
@@ -62,28 +106,6 @@ class SimulationEnvironment:
         best_distance = float('inf')
  
         for uav in self.uavs:
-            if not uav.can_serve_user(request.user_position):
-                # enforces assignemtn range constraint
-                # check if UAV can serve the requested VNF
-                print("uav can not serve bc position")
-                continue
-
-            # meeting constraint 2.15
-            if not uav.is_active:
-                print("uav inactive")
-                continue  # skip inactive UAVs
-
-            # # Check if UAV has the VNFs active
-            # # meeting constraint 2.12
-            # vnfs_needed = set(request.requested_vnfs)
-            # if not vnfs_needed.issubset(uav.active_vnfs):
-            #     print("vnfs not active")
-            #     continue  # Cannot serve this request
-
-            # meeting constraint 2.14
-            if uav.current_load + request.demand > uav.max_capacity:
-                print("capacity would b exceeded")
-                continue  # This UAV cannot take more load
 
             dist = distance(uav.position, request.user_position)
             if dist < best_distance:
@@ -95,8 +117,6 @@ class SimulationEnvironment:
             best_uav.current_load += request.demand  # Increase load
             return best_uav
         else:
-            # No UAV found - queue for retry
-            # self.pending_requests.append(request)
             return None
 
 
@@ -148,26 +168,52 @@ class SimulationEnvironment:
 
             assigned_uav = self.assign_user_to_uav(request)
             if not assigned_uav:
-                print("request " + str(request.request_id) + " could not be assigned to uav") 
+                print(f"Request {request.request_id} could not be assigned to UAV initially.")
+                # Mark this user as dropped, add to final results with penalty
+                processed_latencies.append({
+                    'request_id': request.request_id,
+                    'rcl': 0,
+                    'dml': 0,
+                    'pl': 0,
+                    'prep': 0,
+                    'tx': 0,
+                    'total': 1e9,
+                    'total_no_placement': 1e9
+                })
                 continue
 
             rcl = self.request_collection(request, assigned_uav)
 
-            # Store information for later
             collected_requests.append({
                 'request': request,
-             'assigned_uav': assigned_uav,
-             'rcl': rcl
+                'assigned_uav': assigned_uav,
+                'rcl': rcl
             })
 
         # After all users are collected, now call decision_making() ONCE
         dml = self.decision_making()
+        self.reassign_users_after_optimization()
 
         # Now process placement, preparation, transmission for each user
         for entry in collected_requests:
             request = entry['request']
             assigned_uav = entry['assigned_uav']
             rcl = entry['rcl']
+
+            if assigned_uav not in self.uavs or not assigned_uav.is_active:
+                # UAV became inactive after reoptimization
+                print(f"Warning: UAV {assigned_uav.uav_id} is inactive after optimization, dropping request {request.request_id}.")
+                processed_latencies.append({
+                    'request_id': request.request_id,
+                    'rcl': 0,
+                    'dml': dml,
+                    'pl': 0,
+                    'prep': 0,
+                    'tx': 0,
+                    'total': 1e9,
+                    'total_no_placement': 1e9
+                })
+                continue
 
             pl = self.placement(assigned_uav)
             prep = self.preparation(assigned_uav)
