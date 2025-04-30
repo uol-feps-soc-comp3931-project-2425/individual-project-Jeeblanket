@@ -8,6 +8,7 @@ from classes import PARAMS
 from classes import bandwidth, distance
 from optimisation import PSO
 from optimisation import GWO
+import time
 
 class SimulationEnvironment:
     def __init__(self):
@@ -54,6 +55,86 @@ class SimulationEnvironment:
         # calls PSO
         pso_optimiser = PSO(self.uavs, self.haps, self.user_requests)
         return pso_optimiser.optimise()
+
+    def optimise_vnfs_greedy(self):
+        print("Running Greedy VNF Placement...")
+
+        start_time = time.time()
+
+        # clear all UAV VNFs
+        for uav in self.uavs:
+            uav.active_vnfs.clear()
+
+        # track new VNF activations to enforce A_max
+        new_activations = 0
+        A_max = PARAMS["A_max"]
+
+        # sort requests - more demanding first (or random if equal)
+        sorted_requests = sorted(self.user_requests, key=lambda r: len(r.requested_vnfs), reverse=True)
+
+        for req in sorted_requests:
+            # find UAVs in range, active, and not overloaded
+            candidate_uavs = [
+                uav for uav in self.uavs
+                if uav.is_active and
+                uav.can_serve_user(req.user_position) and
+                uav.current_load + req.demand <= uav.max_capacity
+            ]
+
+            best_uav = None
+            for uav in candidate_uavs:
+                # check if activating VNFs won't exceed cap
+                new_vnfs = set(req.requested_vnfs) - uav.active_vnfs
+                if len(uav.active_vnfs) + len(new_vnfs) <= uav.max_vnfs:
+                    best_uav = uav
+                    break
+
+            if best_uav:
+                new_vnfs = set(req.requested_vnfs) - best_uav.active_vnfs
+                for vnf in new_vnfs:
+                    if new_activations >= A_max:
+                        break  # hit VNF startup limit
+                    best_uav.activate_vnf(vnf)
+                    new_activations += 1
+
+                best_uav.connected_users.append(req)
+                best_uav.current_load += req.demand
+
+        end_time = time.time()
+        return end_time - start_time  # match return type with PSO
+
+    def optimise_vnfs_random(self):
+        print("Running Random VNF Placement...")
+
+        start_time = time.time()
+
+        total_vnfs = 10  # Adjust if your VNF catalog changes
+        A_max = PARAMS["A_max"]
+        new_activations = 0
+
+        for uav in self.uavs:
+            uav.active_vnfs.clear()
+
+            if not uav.is_active:
+                continue
+
+            # Randomly decide how many VNFs to activate (up to UAV limit)
+            num_to_activate = random.randint(1, min(uav.max_vnfs, total_vnfs))
+
+            if new_activations + num_to_activate > A_max:
+                num_to_activate = A_max - new_activations
+                if num_to_activate <= 0:
+                    break  # Hit global activation cap
+
+            vnfs = random.sample(range(total_vnfs), num_to_activate)
+
+            for vnf_id in vnfs:
+                uav.activate_vnf(vnf_id)
+
+            new_activations += num_to_activate
+
+        end_time = time.time()
+        return end_time - start_time
 
     def reassign_users_after_optimization(self):
         print("Reassigning users after optimization...")
@@ -132,7 +213,7 @@ class SimulationEnvironment:
     
     def decision_making(self):
         deployment = self.optimise_network()
-        placement = self.optimise_vnfs()
+        placement = self.optimise_vnfs_greedy()
         dml = deployment + placement
         return dml
 

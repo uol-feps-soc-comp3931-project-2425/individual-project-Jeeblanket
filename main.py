@@ -9,7 +9,7 @@ def main():
     # begin simulation
     s1.run_simulation()
     latency_df = pd.DataFrame(s1.latency_records)
-    latency_df.to_csv("simulation_latency_results1.csv", index=False)
+    latency_df.to_csv("greedy_latency_results1.csv", index=False)
 
 if __name__ == "__main__":
     main()
