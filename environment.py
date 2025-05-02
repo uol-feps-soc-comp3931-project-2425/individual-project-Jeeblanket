@@ -55,8 +55,8 @@ class SimulationEnvironment:
         pso_optimiser = PSO(self.uavs, self.haps, self.user_requests)
         return pso_optimiser.optimise()
 
-    def reassign_users_after_optimization(self):
-        print("Reassigning users after optimization...")
+    def reassign_users_after_optimisation(self):
+        print("Reassigning users after optimisation...")
 
         for uav in self.uavs:
             uav.connected_users.clear()
