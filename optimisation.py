@@ -14,7 +14,7 @@ class GWO:
         self.mutation_interval = 20
         self.noise_strength = 0.05
 
-    def bandwidth_vectorized(self, dists, link_type):
+    def bandwidth_vectorised(self, dists, link_type):
         if link_type == 'user_uav':
             bw_max = PARAMS["BW_max_user_uav"]
             r_max = PARAMS["R_v"]
@@ -44,8 +44,8 @@ class GWO:
         dists_uav_hap = np.linalg.norm(np.array(uav_positions) - hap_pos, axis=1)
         dists_uav_hap = np.broadcast_to(dists_uav_hap, (len(self.requests), len(uav_positions)))
 
-        bw_user_uav = self.bandwidth_vectorized(dists_user_uav, 'user_uav')
-        bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, 'uav_hap')
+        bw_user_uav = self.bandwidth_vectorised(dists_user_uav, 'user_uav')
+        bw_uav_hap = self.bandwidth_vectorised(dists_uav_hap, 'uav_hap')
 
         valid_links = (dists_user_uav <= PARAMS["R_v"]) & (dists_uav_hap <= PARAMS["R_h"]) & (bw_user_uav > 0) & (bw_uav_hap > 0)
 
@@ -202,7 +202,7 @@ class PSO:
             velocities.append(velocity)
         return particles, velocities
 
-    def bandwidth_vectorized(self, dist, link_type):
+    def bandwidth_vectorised(self, dist, link_type):
         if link_type == 'user_uav':
             bw_max = PARAMS["BW_max_user_uav"]
             r_max = PARAMS["R_v"]
@@ -228,8 +228,8 @@ class PSO:
         dists_uav_hap = np.linalg.norm(uav_positions - hap_position, axis=1)
         dists_uav_hap = np.broadcast_to(dists_uav_hap, (num_requests, self.num_uavs))
 
-        bw_user_uav = self.bandwidth_vectorized(dists_user_uav, link_type='user_uav')
-        bw_uav_hap = self.bandwidth_vectorized(dists_uav_hap, link_type='uav_hap')
+        bw_user_uav = self.bandwidth_vectorised(dists_user_uav, link_type='user_uav')
+        bw_uav_hap = self.bandwidth_vectorised(dists_uav_hap, link_type='uav_hap')
 
         particle_vnfs = particle
 
