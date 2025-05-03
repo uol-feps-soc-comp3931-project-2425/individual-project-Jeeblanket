@@ -19,6 +19,7 @@ class SimulationEnvironment:
         self.step = PARAMS["deltaT"]    # timestep between reconfiguration
         self.no_uavs = PARAMS["U"]  # number of UAVs in the system
         self.latency_records = []   # record for analysis
+        self.active_request_log = []
 
         self.initialize_network()
 
@@ -39,11 +40,28 @@ class SimulationEnvironment:
             position = (random.uniform(-25000, 25000), random.uniform(-25000, 25000), 0)
             print(position)
             requested_vnfs = random.sample(range(10), random.randint(1, 3))
-            new_request = UserRequest(request_id=len(self.user_requests), user_position=position, requested_vnfs=requested_vnfs)
+            ttl = random.randint(3,6)
+            new_request = UserRequest(request_id=len(self.user_requests), user_position=position, requested_vnfs=requested_vnfs, ttl=ttl)
 
             self.user_requests.append(new_request)
             self.pending_requests.append(new_request)
         return num_requests
+    
+    def decay_requests(self):
+        still_pending = deque()
+        for request in self.pending_requests:
+            request.ttl -= 1
+            if request.ttl > 0:
+                still_pending.append(request)
+            else:
+                print(f"Request {request.request_id} expired and was removed.")
+                # Optionally: log it as dropped due to timeout
+        self.pending_requests = still_pending
+
+    def log_active_requests(self, time_step):
+        active_ids = [r.request_id for r in self.pending_requests if r.ttl > 0]
+        print(f"[Time {time_step}] Active Requests: {len(active_ids)} → IDs: {active_ids}")
+        return len(active_ids)
 
     def optimise_network(self):
         # calls GWO
@@ -250,6 +268,13 @@ class SimulationEnvironment:
         print("--- Simulation Begin ---")
         for t in range(self.step):
             num_requests = self.generate_user_requests()
+            self.decay_requests()
+            self.log_active_requests(time_step=t)
             if num_requests > 0:
                 self.process_requests()
+            
+            self.active_request_log.append({
+            'time_step': t,
+            'active_request_count': len(self.pending_requests)
+        })
         
