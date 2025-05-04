@@ -8,10 +8,10 @@ def run_experiments():
 
     # Define PARAMS you want to vary
     U_values = [100, 300, 500, 700]          # number of UAVs
-    R_values = [1, 5, 10, 15]                # request arrival rates
-    C_values = [2, 4, 6, 8]                  # max VNFs per UAV
+    R_values = [1, 5, 15, 40]                # request arrival rates
+    C_values = [2, 4, 8, 12]                  # max VNFs per UAV
     S_max_values = [30, 60, 90, 120]         # max UAV movement speed
-    V_max_values = [10, 20, 30, 40]          # max active UAVs
+    V_max_values = [10, 40, 100, 200]          # max active UAVs
 
     # Number of times to repeat each setting (for averaging)
     num_repeats = 1

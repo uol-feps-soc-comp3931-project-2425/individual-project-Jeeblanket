@@ -5,7 +5,7 @@ PARAMS = {
     "U": 500,               # number of UAVs in the system
     "C" : 4,                # max VNFs per UAV
     "R": 5,                 # requests per unit time
-    "S": 0.025,             # megabits for vnf message
+    "S": 0.004496,          # megabits for vnf message
     "B": 192,               # approx number of bits for new position
     "V_max": 30,            # max UAVs active
     "A_max": 20,            # max VNF activations per interval
