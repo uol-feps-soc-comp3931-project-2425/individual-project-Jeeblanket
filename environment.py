@@ -220,7 +220,7 @@ class SimulationEnvironment:
 
         # after all users are collected, now call decision_making() ONCE
         dml = self.decision_making()
-        self.reassign_users_after_optimization()
+        self.reassign_users_after_optimisation()
 
         # now process placement, preparation, transmission for each user
         for entry in collected_requests:

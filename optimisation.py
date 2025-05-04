@@ -11,7 +11,7 @@ class GWO:
         self.requests = requests
         self.max_iter = 100
         self.stagnation_threshold = 20
-        self.mutation_interval = 20
+        self.mutation_interval = 5
         self.noise_strength = 0.05
 
     def bandwidth_vectorised(self, dists, link_type):

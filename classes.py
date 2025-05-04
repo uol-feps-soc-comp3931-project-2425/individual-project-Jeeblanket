@@ -24,7 +24,7 @@ PARAMS = {
 }
 
 class UserRequest:
-    def __init__(self, request_id, user_position, requested_vnfs, demand=5, ttl):
+    def __init__(self, request_id, user_position, requested_vnfs, ttl, demand=5):
         self.request_id = request_id
         self.user_position = user_position  # (x, y, z) on ground (assume z=0)
         self.requested_vnfs = requested_vnfs  # list of VNFs

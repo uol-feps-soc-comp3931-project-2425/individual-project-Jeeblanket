@@ -14,7 +14,7 @@ def run_experiments():
     V_max_values = [10, 20, 30, 40]          # max active UAVs
 
     # Number of times to repeat each setting (for averaging)
-    num_repeats = 10
+    num_repeats = 1
 
     # Create all combinations
     all_combinations = list(itertools.product(U_values, R_values, C_values, S_max_values, V_max_values))
