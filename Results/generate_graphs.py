@@ -4,22 +4,28 @@ import matplotlib.pyplot as plt
 # Load the data
 df = pd.read_csv("Results/experiment_results_final.csv")
 
-# Remove rows with missing avg_total_latency
+# Drop rows with missing latency
 df = df.dropna(subset=["avg_total_latency"])
 
-# Define parameters to plot against
-params = {"U": "Number of UAVs", "R": "Requests per second", "C": "Maximum VNFs per UAV", "S_max": "Maximum UAV movement speed (m/s)", "V_max": "Maximum UAVs Active"}
+# Filter for specific parameters
+filtered_df = df[
+    (df["U"] == 100) &
+    (df["C"] == 2) &
+    (df["S_max"] == 60) &
+    (df["V_max"] == 30)
+]
 
-# Set up plots
-for param in params:
-    grouped = df.groupby(param)["avg_total_latency"].mean().reset_index()
+# Group by R and collect latency values
+grouped = [group["avg_total_latency"].values for _, group in filtered_df.groupby("R")]
+labels = sorted(filtered_df["R"].unique())
 
-    plt.figure()
-    plt.plot(grouped[param], grouped["avg_total_latency"], marker='o')
-    plt.title(f"Average Latency vs {params[param]}")
-    plt.xlabel(param)
-    plt.ylabel("Average Total Latency")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"latency_vs_{param}.png")  # saves each plot as a PNG
-    plt.show()
+# Create boxplot
+plt.figure(figsize=(8, 5))
+plt.boxplot(grouped, labels=labels, patch_artist=True)
+plt.title("Latency vs Arrival Rate (R)\n(U=100, C=2, S_max=60, V_max=30)")
+plt.xlabel("Arrival Rate (R)")
+plt.ylabel("Average Total Latency (s)")
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("boxplot_latency_vs_R_filtered.png")
+plt.show()
