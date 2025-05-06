@@ -1,31 +1,42 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load the data
-df = pd.read_csv("Results/experiment_results_final.csv")
+# Load and label each experiment
 
-# Drop rows with missing latency
-df = df.dropna(subset=["avg_total_latency"])
+static_df = pd.read_csv("Results/random_results_aggregated.csv")
+static_df["Experiment"] = "Random"
 
-# Filter for specific parameters
-filtered_df = df[
-    (df["U"] == 100) &
-    (df["C"] == 2) &
-    (df["S_max"] == 60) &
-    (df["V_max"] == 30)
-]
+optimised_df = pd.read_csv("Results/experiment_results_filtered.csv")
+optimised_df["Experiment"] = "GWO BPSO"
 
-# Group by R and collect latency values
-grouped = [group["avg_total_latency"].values for _, group in filtered_df.groupby("R")]
-labels = sorted(filtered_df["R"].unique())
+greedy_df = pd.read_csv("Results/greedy_results_aggregated.csv")
+greedy_df["Experiment"] = "Greedy"
+# Combine all into one DataFrame
+combined_df = pd.concat([static_df, optimised_df, greedy_df], ignore_index=True)
 
-# Create boxplot
-plt.figure(figsize=(8, 5))
-plt.boxplot(grouped, labels=labels, patch_artist=True)
-plt.title("Latency vs Arrival Rate (R)\n(U=100, C=2, S_max=60, V_max=30)")
-plt.xlabel("Arrival Rate (R)")
-plt.ylabel("Average Total Latency (s)")
-plt.grid(True)
-plt.tight_layout()
-plt.savefig("boxplot_latency_vs_R_filtered.png")
+# Filter out rows with very large latency values (likely outliers or errors)
+combined_df = combined_df[combined_df["avg_total_latency"] < 100]
+
+# Set up subplots
+fig, axs = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+# Plot: Latency vs R grouped by Experiment
+sns.lineplot(data=combined_df, x="R", y="avg_total_latency", hue="Experiment", marker="o", ax=axs[0])
+axs[0].set_title("Latency vs Arrival Rate (R)")
+axs[0].set_xlabel("Arrival Rate (R)")
+axs[0].set_ylabel("Average Latency (s)")
+axs[0].grid(True)
+
+# Plot: Latency vs C grouped by Experiment
+sns.lineplot(data=combined_df, x="C", y="avg_total_latency", hue="Experiment", marker="o", ax=axs[1])
+axs[1].set_title("Latency vs Max VNFs per UAV (C)")
+axs[1].set_xlabel("Max VNFs per UAV (C)")
+axs[1].set_ylabel("Average Latency (s)")
+axs[1].grid(True)
+
+# Adjust layout and save
+plt.suptitle("Average Latency Comparisons by Experiment", fontsize=16)
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig("latency_comp_by_experiment.png")
 plt.show()
